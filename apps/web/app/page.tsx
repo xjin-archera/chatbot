@@ -8,7 +8,7 @@ export default function Page() {
         <div>
           <h1 className="font-medium">Project ready!</h1>
         </div>
-        <Button render={<Link href="/courses" />} size="sm" variant="outline">
+        <Button render={<Link href="/courses" />} nativeButton={false} size="sm" variant="outline">
           Go to Courses
         </Button>
       </div>
