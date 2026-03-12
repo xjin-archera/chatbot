@@ -4,6 +4,18 @@ import { useSyncExternalStore } from "react"
 
 export type LessonType = "video" | "article" | "quiz" | "assignment"
 
+export type QuestionOption = {
+  id: string
+  text: string
+}
+
+export type Question = {
+  id: string
+  text: string
+  options: QuestionOption[]  // always 4 options: a, b, c, d
+  correctOptionId?: string
+}
+
 export type Lesson = {
   id: string
   title: string
@@ -15,6 +27,8 @@ export type Lesson = {
   resources?: string
   numQuestions?: number
   passingScore?: number
+  questions?: Question[]
+  assignmentBrief?: string
   maxScore?: number
   daysToComplete?: number
 }

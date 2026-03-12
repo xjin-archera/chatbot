@@ -48,6 +48,7 @@ import {
   type LessonType,
   type Module,
   type PublishForm,
+  type Question,
   coursesStore,
   useCourses,
 } from "../store"
@@ -149,6 +150,46 @@ function LessonEditorSheet({
     onSave(form)
   }
 
+  function addQuestion() {
+    const newQ: Question = {
+      id: `q${Date.now()}`,
+      text: "",
+      options: [
+        { id: "a", text: "" },
+        { id: "b", text: "" },
+        { id: "c", text: "" },
+        { id: "d", text: "" },
+      ],
+    }
+    const updated = [...(form.questions ?? []), newQ]
+    update("questions", updated)
+    update("numQuestions", updated.length)
+  }
+
+  function removeQuestion(qId: string) {
+    const updated = (form.questions ?? []).filter((q) => q.id !== qId)
+    update("questions", updated)
+    update("numQuestions", updated.length)
+  }
+
+  function updateQuestion(qId: string, key: "text" | "correctOptionId", value: string) {
+    update(
+      "questions",
+      (form.questions ?? []).map((q) => (q.id === qId ? { ...q, [key]: value } : q))
+    )
+  }
+
+  function updateOption(qId: string, optId: string, text: string) {
+    update(
+      "questions",
+      (form.questions ?? []).map((q) =>
+        q.id === qId
+          ? { ...q, options: q.options.map((o) => (o.id === optId ? { ...o, text } : o)) }
+          : q
+      )
+    )
+  }
+
   return (
     <Sheet open={open} onClose={onClose} title="Edit Lesson">
       <div className="flex flex-col gap-4">
@@ -234,33 +275,63 @@ function LessonEditorSheet({
         {form.type === "quiz" && (
           <Card>
             <CardContent className="flex flex-col gap-3 p-4">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Number of Questions" required>
+              <Field label="Passing Score (%)" required>
+                <Input
+                  type="number"
+                  placeholder="70"
+                  min={0}
+                  max={100}
+                  value={form.passingScore ?? ""}
+                  onChange={(e) => update("passingScore", e.target.value ? Number(e.target.value) : undefined)}
+                />
+                {errors.passingScore && <p className="text-xs text-destructive mt-0.5">{errors.passingScore}</p>}
+              </Field>
+
+              {(form.questions ?? []).map((q, qi) => (
+                <div key={q.id} className="rounded-md border border-border p-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-muted-foreground">Question {qi + 1}</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeQuestion(q.id)}>
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <Input
-                    type="number"
-                    placeholder="10"
-                    min={1}
-                    value={form.numQuestions ?? ""}
-                    onChange={(e) => update("numQuestions", e.target.value ? Number(e.target.value) : undefined)}
+                    placeholder="Question text..."
+                    value={q.text}
+                    onChange={(e) => updateQuestion(q.id, "text", e.target.value)}
                   />
-                  {errors.numQuestions && <p className="text-xs text-destructive mt-0.5">{errors.numQuestions}</p>}
-                </Field>
-                <Field label="Passing Score (%)" required>
-                  <Input
-                    type="number"
-                    placeholder="70"
-                    min={0}
-                    max={100}
-                    value={form.passingScore ?? ""}
-                    onChange={(e) => update("passingScore", e.target.value ? Number(e.target.value) : undefined)}
-                  />
-                  {errors.passingScore && <p className="text-xs text-destructive mt-0.5">{errors.passingScore}</p>}
-                </Field>
+                  <div className="flex flex-col gap-1.5 mt-1">
+                    {q.options.map((opt) => (
+                      <div key={opt.id} className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`correct-${q.id}`}
+                          checked={q.correctOptionId === opt.id}
+                          onChange={() => updateQuestion(q.id, "correctOptionId", opt.id)}
+                          className="accent-primary"
+                        />
+                        <span className="text-xs font-medium text-muted-foreground uppercase w-4">{opt.id}</span>
+                        <Input
+                          placeholder={`Option ${opt.id.toUpperCase()}...`}
+                          value={opt.text}
+                          onChange={(e) => updateOption(q.id, opt.id, e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <div className="flex flex-col gap-1">
+                <Button variant="outline" size="sm" className="w-fit" onClick={addQuestion}>
+                  <PlusIcon />
+                  Add Question
+                </Button>
+                {errors.numQuestions && (
+                  <p className="text-xs text-destructive">{errors.numQuestions}</p>
+                )}
               </div>
-              <Button variant="outline" size="sm" className="w-fit">
-                <PlusIcon />
-                Add Question
-              </Button>
             </CardContent>
           </Card>
         )}
@@ -271,6 +342,8 @@ function LessonEditorSheet({
               <Textarea
                 placeholder="Describe the assignment task..."
                 className="min-h-24"
+                value={form.assignmentBrief ?? ""}
+                onChange={(e) => update("assignmentBrief", e.target.value)}
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
@@ -1064,8 +1137,44 @@ function CoursePreview({
                             )
                           )}
 
-                          {(lesson.type === "quiz" || lesson.type === "assignment") && (
-                            <p className="text-sm text-muted-foreground">This content is not available in preview.</p>
+                          {lesson.type === "quiz" && (
+                            <div className="flex flex-col gap-3">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="rounded-md border border-border p-3">
+                                  <p className="text-xs text-muted-foreground">Questions</p>
+                                  <p className="text-lg font-semibold">{lesson.numQuestions ?? "—"}</p>
+                                </div>
+                                <div className="rounded-md border border-border p-3">
+                                  <p className="text-xs text-muted-foreground">Passing Score</p>
+                                  <p className="text-lg font-semibold">
+                                    {lesson.passingScore != null ? `${lesson.passingScore}%` : "—"}
+                                  </p>
+                                </div>
+                              </div>
+                              {lesson.description && (
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{lesson.description}</p>
+                              )}
+                            </div>
+                          )}
+
+                          {lesson.type === "assignment" && (
+                            <div className="flex flex-col gap-3">
+                              {lesson.assignmentBrief ? (
+                                <div className="text-sm whitespace-pre-wrap">{lesson.assignmentBrief}</div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">No brief added yet.</p>
+                              )}
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="rounded-md border border-border p-3">
+                                  <p className="text-xs text-muted-foreground">Max Score</p>
+                                  <p className="text-lg font-semibold">{lesson.maxScore ?? "—"}</p>
+                                </div>
+                                <div className="rounded-md border border-border p-3">
+                                  <p className="text-xs text-muted-foreground">Days to Complete</p>
+                                  <p className="text-lg font-semibold">{lesson.daysToComplete ?? "—"}</p>
+                                </div>
+                              </div>
+                            </div>
                           )}
                         </div>
                       )}
