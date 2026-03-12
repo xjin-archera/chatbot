@@ -55,6 +55,7 @@ export type Course = {
   price?: string
   tags?: string
   thumbnail?: string
+  learningOutcomes?: string
 }
 
 export type PublishForm = {

@@ -714,6 +714,15 @@ function CourseEditor({
                 />
               </Field>
             </div>
+
+            <Field label="What You'll Learn" hint="One outcome per line — shown on the course preview page">
+              <Textarea
+                value={course.learningOutcomes ?? ""}
+                onChange={(e) => updateField("learningOutcomes", e.target.value)}
+                placeholder={"Understand core concepts and practical applications\nBuild real-world projects from scratch\nApply best practices used in production\nGain hands-on experience with modern tooling"}
+                className="min-h-28"
+              />
+            </Field>
           </div>
         )}
 
@@ -1045,24 +1054,25 @@ function CoursePreview({
       </div>
 
       {/* What you'll learn */}
-      <div className="border-b border-border px-6 py-8">
-        <div className="max-w-3xl">
-          <h2 className="mb-4 text-sm font-semibold">What you&apos;ll learn</h2>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {[
-              "Understand core concepts and practical applications",
-              "Build real-world projects from scratch",
-              "Apply best practices used in production",
-              "Gain hands-on experience with modern tooling",
-            ].map((point) => (
-              <div key={point} className="flex items-start gap-2">
-                <CheckCircleIcon className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-                <span className="text-xs text-muted-foreground">{point}</span>
-              </div>
-            ))}
+      {course.learningOutcomes && course.learningOutcomes.trim() && (
+        <div className="border-b border-border px-6 py-8">
+          <div className="max-w-3xl">
+            <h2 className="mb-4 text-sm font-semibold">What you&apos;ll learn</h2>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {course.learningOutcomes
+                .split("\n")
+                .map((line) => line.trim())
+                .filter(Boolean)
+                .map((point) => (
+                  <div key={point} className="flex items-start gap-2">
+                    <CheckCircleIcon className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+                    <span className="text-xs text-muted-foreground">{point}</span>
+                  </div>
+                ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Curriculum preview */}
       <div className="max-w-3xl px-6 py-8">
