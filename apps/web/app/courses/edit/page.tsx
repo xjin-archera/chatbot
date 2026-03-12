@@ -879,64 +879,6 @@ function getYoutubeEmbedUrl(url: string): string | null {
   return match ? `https://www.youtube.com/embed/${match[1]}` : null
 }
 
-// ============ LESSON VIEWER SHEET ============
-
-function LessonViewerSheet({
-  lesson,
-  onClose,
-}: {
-  lesson: Lesson | null
-  onClose: () => void
-}) {
-  return (
-    <Sheet open={!!lesson} onClose={onClose} title={lesson?.title ?? ""}>
-      {lesson && (
-        <div className="flex flex-col gap-4">
-          {lesson.type === "video" && (
-            <div className="flex flex-col gap-3">
-              {lesson.videoUrl ? (
-                (() => {
-                  const embedUrl = getYoutubeEmbedUrl(lesson.videoUrl)
-                  if (embedUrl) {
-                    return (
-                      <iframe
-                        src={embedUrl}
-                        className="w-full rounded aspect-video"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                    )
-                  }
-                  return (
-                    <video controls src={lesson.videoUrl} className="w-full rounded" />
-                  )
-                })()
-              ) : (
-                <p className="text-sm text-muted-foreground">No video uploaded yet.</p>
-              )}
-            </div>
-          )}
-
-          {lesson.type === "article" && (
-            <div>
-              {lesson.articleContent ? (
-                <div className="text-sm whitespace-pre-wrap">{lesson.articleContent}</div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No article content added yet.</p>
-              )}
-            </div>
-          )}
-
-          {(lesson.type === "quiz" || lesson.type === "assignment") && (
-            <p className="text-sm text-muted-foreground">
-              This content is not available in preview.
-            </p>
-          )}
-        </div>
-      )}
-    </Sheet>
-  )
-}
 
 // ============ COURSE PREVIEW ============
 
@@ -949,7 +891,7 @@ function CoursePreview({
   onBack: () => void
   onPublish: () => void
 }) {
-  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null)
+  const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null)
   const totalLessons = course.modules.reduce(
     (acc, m) => acc + m.lessons.length,
     0
@@ -1072,34 +1014,70 @@ function CoursePreview({
                   </span>
                 </div>
 
-                {module.lessons.map((lesson) => (
-                  <div
-                    key={lesson.id}
-                    className="flex cursor-pointer items-center gap-3 border-t border-border px-4 py-2.5 hover:bg-muted/20"
-                    onClick={() => setSelectedLesson(lesson)}
-                  >
-                    <LessonIcon type={lesson.type} />
-                    <span className="flex-1 text-xs">{lesson.title}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {lessonTypeLabel[lesson.type]}
-                    </span>
-                    {lesson.duration && (
-                      <span className="text-xs text-muted-foreground">
-                        {lesson.duration}
-                      </span>
-                    )}
-                  </div>
-                ))}
+                {module.lessons.map((lesson) => {
+                  const isExpanded = expandedLessonId === lesson.id
+                  return (
+                    <div key={lesson.id} className="border-t border-border">
+                      <div
+                        className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-muted/20"
+                        onClick={() => setExpandedLessonId(isExpanded ? null : lesson.id)}
+                      >
+                        <LessonIcon type={lesson.type} />
+                        <span className="flex-1 text-xs">{lesson.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {lessonTypeLabel[lesson.type]}
+                        </span>
+                        {lesson.duration && (
+                          <span className="text-xs text-muted-foreground">
+                            {lesson.duration}
+                          </span>
+                        )}
+                      </div>
+
+                      {isExpanded && (
+                        <div className="border-t border-border bg-muted/10 px-4 py-4">
+                          {lesson.type === "video" && (
+                            lesson.videoUrl ? (
+                              (() => {
+                                const embedUrl = getYoutubeEmbedUrl(lesson.videoUrl)
+                                return embedUrl ? (
+                                  <iframe
+                                    src={embedUrl}
+                                    className="w-full rounded aspect-video"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                  />
+                                ) : (
+                                  <video controls src={lesson.videoUrl} className="w-full rounded" />
+                                )
+                              })()
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No video uploaded yet.</p>
+                            )
+                          )}
+
+                          {lesson.type === "article" && (
+                            lesson.articleContent ? (
+                              <div className="text-sm whitespace-pre-wrap">{lesson.articleContent}</div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No article content added yet.</p>
+                            )
+                          )}
+
+                          {(lesson.type === "quiz" || lesson.type === "assignment") && (
+                            <p className="text-sm text-muted-foreground">This content is not available in preview.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <LessonViewerSheet
-        lesson={selectedLesson}
-        onClose={() => setSelectedLesson(null)}
-      />
     </div>
   )
 }
