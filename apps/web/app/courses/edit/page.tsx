@@ -15,7 +15,6 @@ import {
   PlusIcon,
   RocketIcon,
   TrashIcon,
-  UploadIcon,
 } from "@phosphor-icons/react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -37,6 +36,7 @@ import { Textarea } from "@workspace/ui/components/textarea"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
 
+import { DropZone } from "@/components/dropzone"
 import { Field } from "@/components/field"
 import { LessonIcon, lessonTypeLabel } from "@/components/lesson-icon"
 import { NativeSelect } from "@/components/native-select"
@@ -185,10 +185,11 @@ function LessonEditorSheet({
                 placeholder="https://..."
               />
             </Field>
-            <div className="flex h-24 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-border text-muted-foreground transition-colors hover:border-ring/50 hover:bg-muted/20">
-              <UploadIcon className="size-4" />
-              <p className="text-xs">Or upload a video file</p>
-            </div>
+            <DropZone
+              label="Or drag and drop a video file"
+              accept={{ "video/*": [] }}
+              className="h-24"
+            />
           </div>
         )}
 
@@ -200,10 +201,11 @@ function LessonEditorSheet({
                 className="min-h-32"
               />
             </Field>
-            <div className="flex h-20 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-border text-muted-foreground transition-colors hover:border-ring/50 hover:bg-muted/20">
-              <UploadIcon className="size-4" />
-              <p className="text-xs">Upload images or attachments</p>
-            </div>
+            <DropZone
+              label="Upload images or attachments"
+              accept={{ "image/*": [], "application/pdf": [".pdf"] }}
+              className="h-20"
+            />
           </div>
         )}
 
@@ -242,10 +244,10 @@ function LessonEditorSheet({
                 <Input type="number" placeholder="7" />
               </Field>
             </div>
-            <div className="flex h-20 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-border text-muted-foreground transition-colors hover:border-ring/50 hover:bg-muted/20">
-              <UploadIcon className="size-4" />
-              <p className="text-xs">Upload assignment template</p>
-            </div>
+            <DropZone
+              label="Upload assignment template"
+              className="h-20"
+            />
           </div>
         )}
 
@@ -465,11 +467,12 @@ function CourseEditor({
 
               <div className="flex flex-col gap-1.5">
                 <Label>Thumbnail</Label>
-                <div className="flex h-36 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-border text-muted-foreground transition-colors hover:border-ring/50 hover:bg-muted/20">
-                  <UploadIcon className="size-5" />
-                  <p className="text-xs">Click to upload thumbnail</p>
-                  <p className="text-xs opacity-60">PNG, JPG up to 2MB</p>
-                </div>
+                <DropZone
+                  label="Click or drag to upload thumbnail"
+                  accept={{ "image/png": [".png"], "image/jpeg": [".jpg", ".jpeg"] }}
+                  maxSize={2 * 1024 * 1024}
+                  className="h-36"
+                />
               </div>
 
               <Field label="Course Title" required>
