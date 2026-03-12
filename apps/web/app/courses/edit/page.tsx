@@ -5,11 +5,13 @@ import {
   BookOpenIcon,
   ChartBarIcon,
   CheckCircleIcon,
+  CircleDashedIcon,
   ClipboardTextIcon,
   ClockIcon,
   DotsSixVerticalIcon,
   EyeIcon,
   GearIcon,
+  PencilSimpleIcon,
   PlusIcon,
   RocketIcon,
   TrashIcon,
@@ -17,6 +19,7 @@ import {
 } from "@phosphor-icons/react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
+import { Card, CardContent } from "@workspace/ui/components/card"
 import {
   Dialog,
   DialogContent,
@@ -38,14 +41,252 @@ import { Field } from "@/components/field"
 import { LessonIcon, lessonTypeLabel } from "@/components/lesson-icon"
 import { NativeSelect } from "@/components/native-select"
 import { RadioItem } from "@/components/radio-item"
+import { Sheet } from "@/components/sheet"
 import {
   type Course,
   type Lesson,
+  type LessonType,
   type Module,
   type PublishForm,
   coursesStore,
   useCourses,
 } from "../store"
+
+// ============ EDITABLE MODULE TITLE ============
+
+function EditableModuleTitle({
+  title,
+  onSave,
+}: {
+  title: string
+  onSave: (value: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(title)
+
+  function commit() {
+    onSave(draft.trim() || title)
+    setEditing(false)
+  }
+
+  function cancel() {
+    setDraft(title)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <Input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit()
+          if (e.key === "Escape") cancel()
+        }}
+        autoFocus
+        className="h-7 w-48 text-xs font-medium"
+      />
+    )
+  }
+
+  return (
+    <button
+      className="group flex items-center gap-1.5 text-xs font-medium"
+      onClick={() => {
+        setDraft(title)
+        setEditing(true)
+      }}
+    >
+      {title}
+      <PencilSimpleIcon className="size-3 opacity-0 group-hover:opacity-100 text-muted-foreground transition-opacity" />
+    </button>
+  )
+}
+
+// ============ LESSON EDITOR SHEET ============
+
+function LessonEditorSheet({
+  open,
+  lesson,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  open: boolean
+  lesson: Lesson | null
+  onClose: () => void
+  onSave: (updated: Lesson) => void
+  onDelete: () => void
+}) {
+  const [form, setForm] = useState<Lesson>(
+    lesson ?? { id: "", title: "", type: "video" }
+  )
+
+  // Reset form when lesson changes
+  if (lesson && form.id !== lesson.id) {
+    setForm(lesson)
+  }
+
+  function update<K extends keyof Lesson>(key: K, value: Lesson[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Edit Lesson">
+      <div className="flex flex-col gap-4">
+        <Field label="Title" required>
+          <Input
+            value={form.title}
+            onChange={(e) => update("title", e.target.value)}
+            placeholder="Lesson title..."
+          />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Type">
+            <NativeSelect
+              value={form.type}
+              onChange={(e) => update("type", e.target.value as LessonType)}
+            >
+              <option value="video">Video</option>
+              <option value="article">Article</option>
+              <option value="quiz">Quiz</option>
+              <option value="assignment">Assignment</option>
+            </NativeSelect>
+          </Field>
+          <Field label="Duration">
+            <Input
+              value={form.duration ?? ""}
+              onChange={(e) => update("duration", e.target.value)}
+              placeholder="e.g. 12:30"
+            />
+          </Field>
+        </div>
+
+        <Field label="Description">
+          <Textarea
+            value={form.description ?? ""}
+            onChange={(e) => update("description", e.target.value)}
+            placeholder="Brief description of this lesson..."
+            className="min-h-20"
+          />
+        </Field>
+
+        <Separator />
+
+        {/* Type-specific content */}
+        {form.type === "video" && (
+          <div className="flex flex-col gap-3">
+            <Field label="Video URL">
+              <Input
+                value={form.videoUrl ?? ""}
+                onChange={(e) => update("videoUrl", e.target.value)}
+                placeholder="https://..."
+              />
+            </Field>
+            <div className="flex h-24 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-border text-muted-foreground transition-colors hover:border-ring/50 hover:bg-muted/20">
+              <UploadIcon className="size-4" />
+              <p className="text-xs">Or upload a video file</p>
+            </div>
+          </div>
+        )}
+
+        {form.type === "article" && (
+          <div className="flex flex-col gap-3">
+            <Field label="Article Content">
+              <Textarea
+                placeholder="Write your article content here..."
+                className="min-h-32"
+              />
+            </Field>
+            <div className="flex h-20 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-border text-muted-foreground transition-colors hover:border-ring/50 hover:bg-muted/20">
+              <UploadIcon className="size-4" />
+              <p className="text-xs">Upload images or attachments</p>
+            </div>
+          </div>
+        )}
+
+        {form.type === "quiz" && (
+          <Card>
+            <CardContent className="flex flex-col gap-3 p-4">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Number of Questions">
+                  <Input type="number" placeholder="10" min={1} />
+                </Field>
+                <Field label="Passing Score (%)">
+                  <Input type="number" placeholder="70" min={0} max={100} />
+                </Field>
+              </div>
+              <Button variant="outline" size="sm" className="w-fit">
+                <PlusIcon />
+                Add Question
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {form.type === "assignment" && (
+          <div className="flex flex-col gap-3">
+            <Field label="Assignment Brief">
+              <Textarea
+                placeholder="Describe the assignment task..."
+                className="min-h-24"
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Max Score">
+                <Input type="number" placeholder="100" />
+              </Field>
+              <Field label="Days to Complete">
+                <Input type="number" placeholder="7" />
+              </Field>
+            </div>
+            <div className="flex h-20 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-border text-muted-foreground transition-colors hover:border-ring/50 hover:bg-muted/20">
+              <UploadIcon className="size-4" />
+              <p className="text-xs">Upload assignment template</p>
+            </div>
+          </div>
+        )}
+
+        <Separator />
+
+        <Field
+          label="Resources"
+          hint="One resource per line. Students can download these materials."
+        >
+          <Textarea
+            value={form.resources ?? ""}
+            onChange={(e) => update("resources", e.target.value)}
+            placeholder="https://example.com/slides.pdf&#10;https://example.com/code.zip"
+            className="min-h-20"
+          />
+        </Field>
+
+        {/* Action row */}
+        <div className="flex items-center justify-between pt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={onDelete}
+          >
+            <TrashIcon />
+            Delete
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={() => onSave(form)}>
+              Save
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Sheet>
+  )
+}
 
 // ============ COURSE EDITOR ============
 
@@ -63,9 +304,24 @@ function CourseEditor({
   onChange: (course: Course) => void
 }) {
   const [tab, setTab] = useState("details")
+  const [saved, setSaved] = useState(false)
+  const [lessonSheet, setLessonSheet] = useState<{
+    open: boolean
+    moduleId: string | null
+    lesson: Lesson | null
+  }>({ open: false, moduleId: null, lesson: null })
+  const [enrollment, setEnrollment] = useState<"open" | "approval" | "invite">(
+    "open"
+  )
 
   function updateField<K extends keyof Course>(key: K, value: Course[K]) {
     onChange({ ...course, [key]: value })
+  }
+
+  function save() {
+    coursesStore.upsert(course)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
   function addModule() {
@@ -114,6 +370,29 @@ function CourseEditor({
           : m
       )
     )
+    setLessonSheet({ open: false, moduleId: null, lesson: null })
+  }
+
+  function openEditLesson(moduleId: string, lesson: Lesson) {
+    setLessonSheet({ open: true, moduleId, lesson })
+  }
+
+  function saveLesson(updated: Lesson) {
+    if (!lessonSheet.moduleId) return
+    updateField(
+      "modules",
+      course.modules.map((m) =>
+        m.id === lessonSheet.moduleId
+          ? {
+              ...m,
+              lessons: m.lessons.map((l) =>
+                l.id === updated.id ? updated : l
+              ),
+            }
+          : m
+      )
+    )
+    setLessonSheet({ open: false, moduleId: null, lesson: null })
   }
 
   return (
@@ -132,10 +411,19 @@ function CourseEditor({
               Published
             </Badge>
           ) : (
-            <Badge variant="secondary">Draft</Badge>
+            <Badge variant="secondary">
+              <CircleDashedIcon className="mr-0.5 size-3" />
+              Draft
+            </Badge>
           )}
         </div>
         <div className="flex items-center gap-2">
+          {saved && (
+            <span className="text-xs text-emerald-600">✓ Saved</span>
+          )}
+          <Button variant="outline" size="sm" onClick={save}>
+            Save Draft
+          </Button>
           <Button variant="outline" size="sm" onClick={onPreview}>
             <EyeIcon />
             Preview
@@ -171,69 +459,105 @@ function CourseEditor({
       <div className="flex-1 p-6">
         {/* Details tab */}
         {tab === "details" && (
-          <div className="flex max-w-2xl flex-col gap-5">
-            <h2 className="text-sm font-semibold">Course Details</h2>
+          <div className="grid max-w-3xl grid-cols-3 gap-6">
+            <div className="col-span-2 flex flex-col gap-5">
+              <h2 className="text-sm font-semibold">Course Details</h2>
 
-            <div className="flex flex-col gap-1.5">
-              <Label>Thumbnail</Label>
-              <div className="flex h-36 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-border text-muted-foreground transition-colors hover:border-ring/50 hover:bg-muted/20">
-                <UploadIcon className="size-5" />
-                <p className="text-xs">Click to upload thumbnail</p>
-                <p className="text-xs opacity-60">PNG, JPG up to 2MB</p>
+              <div className="flex flex-col gap-1.5">
+                <Label>Thumbnail</Label>
+                <div className="flex h-36 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-border text-muted-foreground transition-colors hover:border-ring/50 hover:bg-muted/20">
+                  <UploadIcon className="size-5" />
+                  <p className="text-xs">Click to upload thumbnail</p>
+                  <p className="text-xs opacity-60">PNG, JPG up to 2MB</p>
+                </div>
               </div>
+
+              <Field label="Course Title" required>
+                <Input
+                  value={course.title}
+                  onChange={(e) => updateField("title", e.target.value)}
+                  placeholder="Enter course title..."
+                />
+              </Field>
+
+              <Field label="Description" required>
+                <Textarea
+                  value={course.description}
+                  onChange={(e) => updateField("description", e.target.value)}
+                  placeholder="Describe what students will learn..."
+                  className="min-h-24"
+                />
+              </Field>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Category">
+                  <NativeSelect
+                    value={course.category}
+                    onChange={(e) => updateField("category", e.target.value)}
+                  >
+                    <option>Frontend Development</option>
+                    <option>Backend Development</option>
+                    <option>Programming</option>
+                    <option>Design</option>
+                    <option>Data Science</option>
+                    <option>DevOps</option>
+                  </NativeSelect>
+                </Field>
+
+                <Field label="Level">
+                  <NativeSelect
+                    value={course.level}
+                    onChange={(e) => updateField("level", e.target.value)}
+                  >
+                    <option>Beginner</option>
+                    <option>Intermediate</option>
+                    <option>Advanced</option>
+                  </NativeSelect>
+                </Field>
+              </div>
+
+              <Field label="Instructor">
+                <Input
+                  value={course.instructor}
+                  onChange={(e) => updateField("instructor", e.target.value)}
+                  placeholder="Instructor name..."
+                />
+              </Field>
             </div>
 
-            <Field label="Course Title">
-              <Input
-                value={course.title}
-                onChange={(e) => updateField("title", e.target.value)}
-                placeholder="Enter course title..."
-              />
-            </Field>
+            {/* Sidebar */}
+            <div className="col-span-1 flex flex-col gap-4 pt-8">
+              <Field label="Price (USD)">
+                <Input
+                  value={course.price ?? ""}
+                  onChange={(e) => updateField("price", e.target.value)}
+                  placeholder="e.g. 49"
+                />
+              </Field>
 
-            <Field label="Description">
-              <Textarea
-                value={course.description}
-                onChange={(e) => updateField("description", e.target.value)}
-                placeholder="Describe what students will learn..."
-                className="min-h-24"
-              />
-            </Field>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Category">
+              <Field label="Duration">
                 <NativeSelect
-                  value={course.category}
-                  onChange={(e) => updateField("category", e.target.value)}
+                  value={course.duration}
+                  onChange={(e) => updateField("duration", e.target.value)}
                 >
-                  <option>Frontend Development</option>
-                  <option>Backend Development</option>
-                  <option>Programming</option>
-                  <option>Design</option>
-                  <option>Data Science</option>
-                  <option>DevOps</option>
+                  <option>1h – 3h</option>
+                  <option>3h – 6h</option>
+                  <option>6h – 10h</option>
+                  <option>10h+</option>
+                  {course.duration && !["1h – 3h","3h – 6h","6h – 10h","10h+"].includes(course.duration) && (
+                    <option value={course.duration}>{course.duration}</option>
+                  )}
                 </NativeSelect>
               </Field>
 
-              <Field label="Level">
-                <NativeSelect
-                  value={course.level}
-                  onChange={(e) => updateField("level", e.target.value)}
-                >
-                  <option>Beginner</option>
-                  <option>Intermediate</option>
-                  <option>Advanced</option>
-                </NativeSelect>
+              <Field label="Tags" hint="Comma-separated">
+                <Input
+                  value={course.tags ?? ""}
+                  onChange={(e) => updateField("tags", e.target.value)}
+                  placeholder="react, javascript, hooks"
+                />
               </Field>
             </div>
-
-            <Field label="Instructor">
-              <Input
-                value={course.instructor}
-                onChange={(e) => updateField("instructor", e.target.value)}
-                placeholder="Instructor name..."
-              />
-            </Field>
           </div>
         )}
 
@@ -263,14 +587,11 @@ function CourseEditor({
                     {/* Module header */}
                     <div className="flex items-center gap-2 bg-muted/40 px-3 py-2">
                       <DotsSixVerticalIcon className="size-3.5 shrink-0 cursor-grab text-muted-foreground" />
-                      <input
-                        value={module.title}
-                        onChange={(e) =>
-                          updateModuleTitle(module.id, e.target.value)
-                        }
-                        className="flex-1 bg-transparent text-xs font-medium outline-none placeholder:text-muted-foreground"
+                      <EditableModuleTitle
+                        title={module.title}
+                        onSave={(title) => updateModuleTitle(module.id, title)}
                       />
-                      <span className="shrink-0 text-xs text-muted-foreground">
+                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                         {module.lessons.length} lesson
                         {module.lessons.length !== 1 ? "s" : ""}
                       </span>
@@ -288,11 +609,21 @@ function CourseEditor({
                     {module.lessons.map((lesson) => (
                       <div
                         key={lesson.id}
-                        className="flex items-center gap-2 border-t border-border px-3 py-2"
+                        className="group flex cursor-pointer items-center gap-2 border-t border-border px-3 py-2 hover:bg-muted/20"
+                        onClick={() => openEditLesson(module.id, lesson)}
                       >
                         <DotsSixVerticalIcon className="size-3 shrink-0 cursor-grab text-muted-foreground" />
                         <LessonIcon type={lesson.type} />
-                        <span className="flex-1 text-xs">{lesson.title}</span>
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="text-xs font-medium">
+                            {lesson.title}
+                          </span>
+                          {lesson.description && (
+                            <span className="truncate text-xs text-muted-foreground">
+                              {lesson.description}
+                            </span>
+                          )}
+                        </div>
                         <span className="shrink-0 text-xs text-muted-foreground">
                           {lessonTypeLabel[lesson.type]}
                         </span>
@@ -301,14 +632,7 @@ function CourseEditor({
                             {lesson.duration}
                           </span>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => deleteLesson(module.id, lesson.id)}
-                          className="shrink-0 text-muted-foreground hover:text-destructive"
-                        >
-                          <TrashIcon />
-                        </Button>
+                        <PencilSimpleIcon className="size-3 shrink-0 opacity-0 text-muted-foreground group-hover:opacity-100 transition-opacity" />
                       </div>
                     ))}
 
@@ -341,14 +665,28 @@ function CourseEditor({
                 Enrollment
               </p>
 
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs font-medium">Open Enrollment</span>
-                  <span className="text-xs text-muted-foreground">
-                    Allow anyone to enroll without approval
-                  </span>
-                </div>
-                <Switch defaultChecked />
+              <div className="flex flex-col gap-2">
+                <RadioItem
+                  id="enroll-open"
+                  label="Open Enrollment"
+                  description="Anyone can enroll without approval."
+                  checked={enrollment === "open"}
+                  onChange={() => setEnrollment("open")}
+                />
+                <RadioItem
+                  id="enroll-approval"
+                  label="Requires Approval"
+                  description="Students must request access and be approved."
+                  checked={enrollment === "approval"}
+                  onChange={() => setEnrollment("approval")}
+                />
+                <RadioItem
+                  id="enroll-invite"
+                  label="Invite Only"
+                  description="Only students with an invitation link can enroll."
+                  checked={enrollment === "invite"}
+                  onChange={() => setEnrollment("invite")}
+                />
               </div>
 
               <Separator />
@@ -392,9 +730,61 @@ function CourseEditor({
                 />
               </Field>
             </div>
+
+            <Separator />
+
+            {/* Danger zone */}
+            <div className="flex flex-col gap-3">
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                Danger Zone
+              </p>
+              <div className="rounded border border-destructive/30 p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-medium">Archive Course</span>
+                    <span className="text-xs text-muted-foreground">
+                      Hide this course from students. Can be restored later.
+                    </span>
+                  </div>
+                  <Button variant="outline" size="sm">
+                    Archive
+                  </Button>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-medium">Delete Course</span>
+                    <span className="text-xs text-muted-foreground">
+                      Permanently delete this course and all its content.
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Lesson editor sheet */}
+      <LessonEditorSheet
+        open={lessonSheet.open}
+        lesson={lessonSheet.lesson}
+        onClose={() =>
+          setLessonSheet({ open: false, moduleId: null, lesson: null })
+        }
+        onSave={saveLesson}
+        onDelete={() =>
+          lessonSheet.moduleId && lessonSheet.lesson &&
+          deleteLesson(lessonSheet.moduleId, lessonSheet.lesson.id)
+        }
+      />
     </div>
   )
 }
@@ -435,17 +825,21 @@ function CoursePreview({
       </div>
 
       {/* Hero section */}
-      <div className="border-b border-border bg-muted/30 px-6 py-10">
+      <div className="bg-linear-to-br from-gray-900 via-gray-800 to-gray-900 px-6 py-10">
         <div className="max-w-3xl">
           <div className="mb-3 flex items-center gap-2">
-            <Badge variant="secondary">{course.category}</Badge>
-            <Badge variant="outline">{course.level}</Badge>
+            <Badge className="bg-white/10 text-white border-white/20">
+              {course.category}
+            </Badge>
+            <Badge className="bg-white/10 text-white border-white/20">
+              {course.level}
+            </Badge>
           </div>
-          <h1 className="mb-3 text-2xl font-bold">{course.title}</h1>
-          <p className="mb-6 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          <h1 className="mb-3 text-2xl font-bold text-white">{course.title}</h1>
+          <p className="mb-6 max-w-2xl text-sm leading-relaxed text-gray-300">
             {course.description}
           </p>
-          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+          <div className="mb-6 flex flex-wrap items-center gap-4 text-xs text-gray-400">
             <span className="flex items-center gap-1.5">
               <ClockIcon className="size-3.5" />
               {course.duration}
@@ -462,10 +856,38 @@ function CoursePreview({
             )}
             <span className="flex items-center gap-1.5">
               Taught by{" "}
-              <span className="font-medium text-foreground">
-                {course.instructor}
-              </span>
+              <span className="font-medium text-white">{course.instructor}</span>
             </span>
+          </div>
+          <div className="flex items-center gap-3">
+            {course.price && (
+              <span className="text-xl font-bold text-white">
+                ${course.price}
+              </span>
+            )}
+            <Button className="bg-white text-gray-900 hover:bg-gray-100">
+              Enroll Now
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* What you'll learn */}
+      <div className="border-b border-border px-6 py-8">
+        <div className="max-w-3xl">
+          <h2 className="mb-4 text-sm font-semibold">What you&apos;ll learn</h2>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {[
+              "Understand core concepts and practical applications",
+              "Build real-world projects from scratch",
+              "Apply best practices used in production",
+              "Gain hands-on experience with modern tooling",
+            ].map((point) => (
+              <div key={point} className="flex items-start gap-2">
+                <CheckCircleIcon className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+                <span className="text-xs text-muted-foreground">{point}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

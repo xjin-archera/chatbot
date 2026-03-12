@@ -2,13 +2,16 @@ import { useSyncExternalStore } from "react"
 
 // ============ TYPES ============
 
-export type LessonType = "video" | "text" | "quiz"
+export type LessonType = "video" | "article" | "quiz" | "assignment"
 
 export type Lesson = {
   id: string
   title: string
   type: LessonType
   duration?: string
+  description?: string
+  videoUrl?: string
+  resources?: string
 }
 
 export type Module = {
@@ -30,6 +33,8 @@ export type Course = {
   students: number
   category: string
   level: string
+  price?: string
+  tags?: string
 }
 
 export type PublishForm = {
@@ -49,14 +54,21 @@ const defaultModules: Module[] = [
         title: "Introduction to the Course",
         type: "video",
         duration: "5:30",
+        description: "An overview of what you'll learn throughout this course.",
       },
       {
         id: "l2",
         title: "Setting Up Your Environment",
         type: "video",
         duration: "12:00",
+        description: "Install and configure all the tools you need to follow along.",
       },
-      { id: "l3", title: "Core Concepts Overview", type: "text" },
+      {
+        id: "l3",
+        title: "Core Concepts Overview",
+        type: "article",
+        description: "A written introduction to the key concepts covered in this course.",
+      },
     ],
   },
   {
@@ -68,8 +80,14 @@ const defaultModules: Module[] = [
         title: "Deep Dive: Fundamentals",
         type: "video",
         duration: "24:15",
+        description: "A thorough exploration of the foundational principles.",
       },
-      { id: "l5", title: "Hands-on Exercise", type: "text" },
+      {
+        id: "l5",
+        title: "Hands-on Exercise",
+        type: "assignment",
+        description: "Apply what you've learned in a practical exercise.",
+      },
       { id: "l6", title: "Module 2 Quiz", type: "quiz" },
     ],
   },
@@ -82,12 +100,14 @@ const defaultModules: Module[] = [
         title: "Advanced Patterns & Best Practices",
         type: "video",
         duration: "35:00",
+        description: "Explore advanced patterns used in production applications.",
       },
       {
         id: "l8",
         title: "Real-World Project",
         type: "video",
         duration: "28:45",
+        description: "Build a complete project from start to finish.",
       },
       { id: "l9", title: "Final Assessment", type: "quiz" },
     ],
@@ -107,6 +127,8 @@ const seedCourses: Course[] = [
     students: 1243,
     category: "Frontend Development",
     level: "Beginner",
+    price: "49",
+    tags: "react, javascript, frontend",
   },
   {
     id: "c2",
@@ -120,6 +142,8 @@ const seedCourses: Course[] = [
     students: 892,
     category: "Programming",
     level: "Advanced",
+    price: "79",
+    tags: "typescript, javascript, types",
   },
   {
     id: "c3",

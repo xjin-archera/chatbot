@@ -4,6 +4,7 @@ import {
   BookOpenIcon,
   ChartBarIcon,
   ClockIcon,
+  FileTextIcon,
   MagnifyingGlassIcon,
   PlusIcon,
 } from "@phosphor-icons/react"
@@ -11,7 +12,6 @@ import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Card } from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
-import { Separator } from "@workspace/ui/components/separator"
 import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -101,7 +101,7 @@ export default function CoursesPage() {
         </div>
       </div>
 
-      {/* Course grid */}
+      {/* Course list */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <BookOpenIcon className="mb-3 size-8 text-muted-foreground" />
@@ -111,60 +111,70 @@ export default function CoursesPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="flex flex-col space-y-3">
           {filtered.map((course) => (
             <Card
               key={course.id}
-              className="cursor-pointer overflow-hidden transition-all hover:ring-1 hover:ring-ring/30"
+              className="cursor-pointer transition-all hover:ring-1 hover:ring-ring/30"
               onClick={() => handleSelectCourse(course)}
             >
-              {/* Thumbnail */}
-              <div className="flex h-32 items-center justify-center border-b border-border bg-muted">
-                <BookOpenIcon className="size-8 text-muted-foreground/40" />
-              </div>
-
-              <div className="flex flex-col gap-2 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm leading-tight font-medium">
-                    {course.title}
-                  </p>
-                  {course.status === "published" ? (
-                    <Badge className="shrink-0 border-transparent bg-emerald-100 text-emerald-700">
-                      Published
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="shrink-0">
-                      Draft
-                    </Badge>
-                  )}
+              <div className="flex items-center gap-5 p-5">
+                {/* Thumbnail */}
+                <div className="w-20 h-14 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <BookOpenIcon className="size-6 text-muted-foreground/40" />
                 </div>
 
-                <p className="line-clamp-2 text-xs text-muted-foreground">
-                  {course.description}
-                </p>
+                {/* Info */}
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium leading-tight">
+                      {course.title}
+                    </p>
+                    {course.status === "published" ? (
+                      <Badge className="shrink-0 border-transparent bg-emerald-100 text-emerald-700">
+                        Published
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="shrink-0">
+                        Draft
+                      </Badge>
+                    )}
+                  </div>
 
-                <Separator />
+                  <p className="line-clamp-1 text-xs text-muted-foreground">
+                    {course.description}
+                  </p>
 
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <ClockIcon className="size-3" />
-                    {course.duration}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <BookOpenIcon className="size-3" />
-                    {totalLessons(course)} lessons
-                  </span>
-                  {course.students > 0 && (
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <ChartBarIcon className="size-3" />
-                      {course.students.toLocaleString()} students
+                      {course.modules.length} module{course.modules.length !== 1 ? "s" : ""}
                     </span>
-                  )}
+                    <span className="flex items-center gap-1">
+                      <FileTextIcon className="size-3" />
+                      {totalLessons(course)} lesson{totalLessons(course) !== 1 ? "s" : ""}
+                    </span>
+                    <span>{course.level}</span>
+                    {course.duration && (
+                      <span className="flex items-center gap-1">
+                        <ClockIcon className="size-3" />
+                        {course.duration}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <p className="text-xs text-muted-foreground">
-                  {course.instructor}
-                </p>
+                {/* Right column */}
+                <div className="shrink-0 text-right">
+                  {course.price && (
+                    <p className="text-sm font-medium">${course.price}</p>
+                  )}
+                  {course.students > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {course.students.toLocaleString()} students
+                    </p>
+                  )}
+                </div>
               </div>
             </Card>
           ))}
