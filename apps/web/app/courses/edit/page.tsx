@@ -344,16 +344,19 @@ function CourseEditor({
   onPreview,
   onPublish,
   onChange,
+  courseErrors,
+  setCourseErrors,
 }: {
   course: Course
   onBack: () => void
   onPreview: () => void
   onPublish: () => void
   onChange: (course: Course) => void
+  courseErrors: Record<string, string>
+  setCourseErrors: (errors: Record<string, string>) => void
 }) {
   const [tab, setTab] = useState("details")
   const [saved, setSaved] = useState(false)
-  const [courseErrors, setCourseErrors] = useState<Record<string, string>>({})
   const [lessonSheet, setLessonSheet] = useState<{
     open: boolean
     moduleId: string | null
@@ -365,21 +368,24 @@ function CourseEditor({
 
   function updateField<K extends keyof Course>(key: K, value: Course[K]) {
     onChange({ ...course, [key]: value })
-    setCourseErrors((e) => {
-      const n = { ...e }
-      delete n[key as string]
-      return n
-    })
+    const n = { ...courseErrors }
+    delete n[key as string]
+    setCourseErrors(n)
   }
 
-  function save() {
+  function validateCourse(): boolean {
     const result = courseDetailsSchema.safeParse(course)
     if (!result.success) {
       setCourseErrors(collectErrors(result))
       setTab("details")
-      return
+      return false
     }
     setCourseErrors({})
+    return true
+  }
+
+  function save() {
+    if (!validateCourse()) return
     coursesStore.upsert(course)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -1091,6 +1097,7 @@ function EditPageContent() {
   const [view, setView] = useState<"editor" | "preview">("editor")
   const [publishForm, setPublishForm] = useState<PublishForm | null>(null)
   const [publishErrors, setPublishErrors] = useState<Record<string, string>>({})
+  const [courseErrors, setCourseErrors] = useState<Record<string, string>>({})
 
   if (!course) {
     return (
@@ -1106,6 +1113,17 @@ function EditPageContent() {
 
   function handleChange(updated: Course) {
     coursesStore.upsert(updated)
+  }
+
+  function openPublishDialog() {
+    const result = courseDetailsSchema.safeParse(course)
+    if (!result.success) {
+      setCourseErrors(collectErrors(result))
+      setView("editor")
+      return
+    }
+    setCourseErrors({})
+    setPublishForm({ mode: "immediate", scheduleDate: "" })
   }
 
   function handleConfirmPublish() {
@@ -1128,8 +1146,10 @@ function EditPageContent() {
           course={course}
           onBack={() => router.push("/courses")}
           onPreview={() => setView("preview")}
-          onPublish={() => setPublishForm({ mode: "immediate", scheduleDate: "" })}
+          onPublish={openPublishDialog}
           onChange={handleChange}
+          courseErrors={courseErrors}
+          setCourseErrors={setCourseErrors}
         />
       )}
 
@@ -1137,7 +1157,7 @@ function EditPageContent() {
         <CoursePreview
           course={course}
           onBack={() => setView("editor")}
-          onPublish={() => setPublishForm({ mode: "immediate", scheduleDate: "" })}
+          onPublish={openPublishDialog}
         />
       )}
 
