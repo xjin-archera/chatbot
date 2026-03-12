@@ -1,3 +1,6 @@
+import { Button } from "@workspace/ui/components/button"
+import Link from "next/link"
+
 export default function Page() {
   return (
     <div className="flex min-h-svh p-6">
@@ -5,6 +8,9 @@ export default function Page() {
         <div>
           <h1 className="font-medium">Project ready!</h1>
         </div>
+        <Button render={<Link href="/courses" />} size="sm" variant="outline">
+          Go to Courses
+        </Button>
       </div>
     </div>
   )
