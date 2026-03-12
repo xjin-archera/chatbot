@@ -12,6 +12,10 @@ export type Lesson = {
   description?: string
   videoUrl?: string
   resources?: string
+  numQuestions?: number
+  passingScore?: number
+  maxScore?: number
+  daysToComplete?: number
 }
 
 export type Module = {

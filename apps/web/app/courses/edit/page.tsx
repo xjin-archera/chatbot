@@ -51,6 +51,7 @@ import {
   coursesStore,
   useCourses,
 } from "../store"
+import { collectErrors, courseDetailsSchema, lessonSchema, publishSchema } from "../schemas"
 
 // ============ EDITABLE MODULE TITLE ============
 
@@ -122,14 +123,30 @@ function LessonEditorSheet({
   const [form, setForm] = useState<Lesson>(
     lesson ?? { id: "", title: "", type: "video" }
   )
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   // Reset form when lesson changes
   if (lesson && form.id !== lesson.id) {
     setForm(lesson)
+    setErrors({})
   }
 
   function update<K extends keyof Lesson>(key: K, value: Lesson[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
+    setErrors((e) => {
+      const n = { ...e }
+      delete n[key as string]
+      return n
+    })
+  }
+
+  function handleSave() {
+    const result = lessonSchema.safeParse(form)
+    if (!result.success) {
+      setErrors(collectErrors(result))
+      return
+    }
+    onSave(form)
   }
 
   return (
@@ -141,6 +158,7 @@ function LessonEditorSheet({
             onChange={(e) => update("title", e.target.value)}
             placeholder="Lesson title..."
           />
+          {errors.title && <p className="text-xs text-destructive mt-0.5">{errors.title}</p>}
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
@@ -178,12 +196,13 @@ function LessonEditorSheet({
         {/* Type-specific content */}
         {form.type === "video" && (
           <div className="flex flex-col gap-3">
-            <Field label="Video URL">
+            <Field label="Video URL" required>
               <Input
                 value={form.videoUrl ?? ""}
                 onChange={(e) => update("videoUrl", e.target.value)}
                 placeholder="https://..."
               />
+              {errors.videoUrl && <p className="text-xs text-destructive mt-0.5">{errors.videoUrl}</p>}
             </Field>
             <DropZone
               label="Or drag and drop a video file"
@@ -213,11 +232,26 @@ function LessonEditorSheet({
           <Card>
             <CardContent className="flex flex-col gap-3 p-4">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Number of Questions">
-                  <Input type="number" placeholder="10" min={1} />
+                <Field label="Number of Questions" required>
+                  <Input
+                    type="number"
+                    placeholder="10"
+                    min={1}
+                    value={form.numQuestions ?? ""}
+                    onChange={(e) => update("numQuestions", e.target.value ? Number(e.target.value) : undefined)}
+                  />
+                  {errors.numQuestions && <p className="text-xs text-destructive mt-0.5">{errors.numQuestions}</p>}
                 </Field>
-                <Field label="Passing Score (%)">
-                  <Input type="number" placeholder="70" min={0} max={100} />
+                <Field label="Passing Score (%)" required>
+                  <Input
+                    type="number"
+                    placeholder="70"
+                    min={0}
+                    max={100}
+                    value={form.passingScore ?? ""}
+                    onChange={(e) => update("passingScore", e.target.value ? Number(e.target.value) : undefined)}
+                  />
+                  {errors.passingScore && <p className="text-xs text-destructive mt-0.5">{errors.passingScore}</p>}
                 </Field>
               </div>
               <Button variant="outline" size="sm" className="w-fit">
@@ -237,11 +271,23 @@ function LessonEditorSheet({
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Max Score">
-                <Input type="number" placeholder="100" />
+              <Field label="Max Score" required>
+                <Input
+                  type="number"
+                  placeholder="100"
+                  value={form.maxScore ?? ""}
+                  onChange={(e) => update("maxScore", e.target.value ? Number(e.target.value) : undefined)}
+                />
+                {errors.maxScore && <p className="text-xs text-destructive mt-0.5">{errors.maxScore}</p>}
               </Field>
-              <Field label="Days to Complete">
-                <Input type="number" placeholder="7" />
+              <Field label="Days to Complete" required>
+                <Input
+                  type="number"
+                  placeholder="7"
+                  value={form.daysToComplete ?? ""}
+                  onChange={(e) => update("daysToComplete", e.target.value ? Number(e.target.value) : undefined)}
+                />
+                {errors.daysToComplete && <p className="text-xs text-destructive mt-0.5">{errors.daysToComplete}</p>}
               </Field>
             </div>
             <DropZone
@@ -280,7 +326,7 @@ function LessonEditorSheet({
             <Button variant="outline" size="sm" onClick={onClose}>
               Cancel
             </Button>
-            <Button size="sm" onClick={() => onSave(form)}>
+            <Button size="sm" onClick={handleSave}>
               Save
             </Button>
           </div>
@@ -307,6 +353,7 @@ function CourseEditor({
 }) {
   const [tab, setTab] = useState("details")
   const [saved, setSaved] = useState(false)
+  const [courseErrors, setCourseErrors] = useState<Record<string, string>>({})
   const [lessonSheet, setLessonSheet] = useState<{
     open: boolean
     moduleId: string | null
@@ -318,9 +365,21 @@ function CourseEditor({
 
   function updateField<K extends keyof Course>(key: K, value: Course[K]) {
     onChange({ ...course, [key]: value })
+    setCourseErrors((e) => {
+      const n = { ...e }
+      delete n[key as string]
+      return n
+    })
   }
 
   function save() {
+    const result = courseDetailsSchema.safeParse(course)
+    if (!result.success) {
+      setCourseErrors(collectErrors(result))
+      setTab("details")
+      return
+    }
+    setCourseErrors({})
     coursesStore.upsert(course)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -481,6 +540,7 @@ function CourseEditor({
                   onChange={(e) => updateField("title", e.target.value)}
                   placeholder="Enter course title..."
                 />
+                {courseErrors.title && <p className="text-xs text-destructive mt-0.5">{courseErrors.title}</p>}
               </Field>
 
               <Field label="Description" required>
@@ -490,6 +550,7 @@ function CourseEditor({
                   placeholder="Describe what students will learn..."
                   className="min-h-24"
                 />
+                {courseErrors.description && <p className="text-xs text-destructive mt-0.5">{courseErrors.description}</p>}
               </Field>
 
               <div className="grid grid-cols-2 gap-4">
@@ -519,12 +580,13 @@ function CourseEditor({
                 </Field>
               </div>
 
-              <Field label="Instructor">
+              <Field label="Instructor" required>
                 <Input
                   value={course.instructor}
                   onChange={(e) => updateField("instructor", e.target.value)}
                   placeholder="Instructor name..."
                 />
+                {courseErrors.instructor && <p className="text-xs text-destructive mt-0.5">{courseErrors.instructor}</p>}
               </Field>
             </div>
 
@@ -536,6 +598,7 @@ function CourseEditor({
                   onChange={(e) => updateField("price", e.target.value)}
                   placeholder="e.g. 49"
                 />
+                {courseErrors.price && <p className="text-xs text-destructive mt-0.5">{courseErrors.price}</p>}
               </Field>
 
               <Field label="Duration">
@@ -952,12 +1015,14 @@ function PublishDialog({
   onFormChange,
   onConfirm,
   onCancel,
+  errors,
 }: {
   course: Course
   form: PublishForm
   onFormChange: (form: PublishForm) => void
   onConfirm: () => void
   onCancel: () => void
+  errors: Record<string, string>
 }) {
   return (
     <DialogContent showCloseButton={false}>
@@ -992,6 +1057,9 @@ function PublishDialog({
                 onFormChange({ ...form, scheduleDate: e.target.value })
               }
             />
+            {errors.scheduleDate && (
+              <p className="text-xs text-destructive mt-0.5">{errors.scheduleDate}</p>
+            )}
           </div>
         )}
       </div>
@@ -1022,6 +1090,7 @@ function EditPageContent() {
 
   const [view, setView] = useState<"editor" | "preview">("editor")
   const [publishForm, setPublishForm] = useState<PublishForm | null>(null)
+  const [publishErrors, setPublishErrors] = useState<Record<string, string>>({})
 
   if (!course) {
     return (
@@ -1040,6 +1109,13 @@ function EditPageContent() {
   }
 
   function handleConfirmPublish() {
+    if (!publishForm) return
+    const result = publishSchema.safeParse(publishForm)
+    if (!result.success) {
+      setPublishErrors(collectErrors(result))
+      return
+    }
+    setPublishErrors({})
     coursesStore.upsert({ ...course!, status: "published" })
     setPublishForm(null)
     setView("editor")
@@ -1073,9 +1149,13 @@ function EditPageContent() {
           <PublishDialog
             course={course}
             form={publishForm}
-            onFormChange={setPublishForm}
+            onFormChange={(f) => {
+              setPublishForm(f)
+              setPublishErrors({})
+            }}
             onConfirm={handleConfirmPublish}
-            onCancel={() => setPublishForm(null)}
+            onCancel={() => { setPublishForm(null); setPublishErrors({}) }}
+            errors={publishErrors}
           />
         )}
       </Dialog>
