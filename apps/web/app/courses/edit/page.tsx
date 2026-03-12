@@ -208,6 +208,7 @@ function LessonEditorSheet({
               label="Or drag and drop a video file"
               accept={{ "video/*": [] }}
               className="h-24"
+              onFiles={(files) => { const f = files[0]; if (f) update("videoUrl", URL.createObjectURL(f)) }}
             />
           </div>
         )}
@@ -216,6 +217,8 @@ function LessonEditorSheet({
           <div className="flex flex-col gap-3">
             <Field label="Article Content">
               <Textarea
+                value={form.articleContent ?? ""}
+                onChange={(e) => update("articleContent", e.target.value)}
                 placeholder="Write your article content here..."
                 className="min-h-32"
               />
@@ -532,11 +535,19 @@ function CourseEditor({
 
               <div className="flex flex-col gap-1.5">
                 <Label>Thumbnail</Label>
+                {course.thumbnail && (
+                  <img
+                    src={course.thumbnail}
+                    alt="Thumbnail preview"
+                    className="h-36 w-full rounded object-cover border border-border"
+                  />
+                )}
                 <DropZone
                   label="Click or drag to upload thumbnail"
                   accept={{ "image/png": [".png"], "image/jpeg": [".jpg", ".jpeg"] }}
                   maxSize={2 * 1024 * 1024}
                   className="h-36"
+                  onFiles={(files) => { const f = files[0]; if (f) updateField("thumbnail", URL.createObjectURL(f)) }}
                 />
               </div>
 
@@ -861,6 +872,72 @@ function CourseEditor({
   )
 }
 
+// ============ YOUTUBE HELPER ============
+
+function getYoutubeEmbedUrl(url: string): string | null {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/)
+  return match ? `https://www.youtube.com/embed/${match[1]}` : null
+}
+
+// ============ LESSON VIEWER SHEET ============
+
+function LessonViewerSheet({
+  lesson,
+  onClose,
+}: {
+  lesson: Lesson | null
+  onClose: () => void
+}) {
+  return (
+    <Sheet open={!!lesson} onClose={onClose} title={lesson?.title ?? ""}>
+      {lesson && (
+        <div className="flex flex-col gap-4">
+          {lesson.type === "video" && (
+            <div className="flex flex-col gap-3">
+              {lesson.videoUrl ? (
+                (() => {
+                  const embedUrl = getYoutubeEmbedUrl(lesson.videoUrl)
+                  if (embedUrl) {
+                    return (
+                      <iframe
+                        src={embedUrl}
+                        className="w-full rounded aspect-video"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    )
+                  }
+                  return (
+                    <video controls src={lesson.videoUrl} className="w-full rounded" />
+                  )
+                })()
+              ) : (
+                <p className="text-sm text-muted-foreground">No video uploaded yet.</p>
+              )}
+            </div>
+          )}
+
+          {lesson.type === "article" && (
+            <div>
+              {lesson.articleContent ? (
+                <div className="text-sm whitespace-pre-wrap">{lesson.articleContent}</div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No article content added yet.</p>
+              )}
+            </div>
+          )}
+
+          {(lesson.type === "quiz" || lesson.type === "assignment") && (
+            <p className="text-sm text-muted-foreground">
+              This content is not available in preview.
+            </p>
+          )}
+        </div>
+      )}
+    </Sheet>
+  )
+}
+
 // ============ COURSE PREVIEW ============
 
 function CoursePreview({
@@ -872,6 +949,7 @@ function CoursePreview({
   onBack: () => void
   onPublish: () => void
 }) {
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null)
   const totalLessons = course.modules.reduce(
     (acc, m) => acc + m.lessons.length,
     0
@@ -941,6 +1019,13 @@ function CoursePreview({
               Enroll Now
             </Button>
           </div>
+          {course.thumbnail && (
+            <img
+              src={course.thumbnail}
+              alt={course.title}
+              className="mt-6 h-48 max-w-md rounded-lg object-cover shadow-lg"
+            />
+          )}
         </div>
       </div>
 
@@ -990,7 +1075,8 @@ function CoursePreview({
                 {module.lessons.map((lesson) => (
                   <div
                     key={lesson.id}
-                    className="flex items-center gap-3 border-t border-border px-4 py-2.5"
+                    className="flex cursor-pointer items-center gap-3 border-t border-border px-4 py-2.5 hover:bg-muted/20"
+                    onClick={() => setSelectedLesson(lesson)}
                   >
                     <LessonIcon type={lesson.type} />
                     <span className="flex-1 text-xs">{lesson.title}</span>
@@ -1009,6 +1095,11 @@ function CoursePreview({
           </div>
         )}
       </div>
+
+      <LessonViewerSheet
+        lesson={selectedLesson}
+        onClose={() => setSelectedLesson(null)}
+      />
     </div>
   )
 }

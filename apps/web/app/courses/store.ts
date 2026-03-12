@@ -11,6 +11,7 @@ export type Lesson = {
   duration?: string
   description?: string
   videoUrl?: string
+  articleContent?: string
   resources?: string
   numQuestions?: number
   passingScore?: number
@@ -39,6 +40,7 @@ export type Course = {
   level: string
   price?: string
   tags?: string
+  thumbnail?: string
 }
 
 export type PublishForm = {
