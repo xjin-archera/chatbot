@@ -4,13 +4,25 @@ import {
   BookOpenIcon,
   ChartBarIcon,
   ClockIcon,
+  DotsThreeVerticalIcon,
   FileTextIcon,
   MagnifyingGlassIcon,
+  PencilSimpleIcon,
   PlusIcon,
+  TrashIcon,
+  WarningIcon,
 } from "@phosphor-icons/react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Card } from "@workspace/ui/components/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
 import { Input } from "@workspace/ui/components/input"
 import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { useRouter } from "next/navigation"
@@ -18,11 +30,68 @@ import { useState } from "react"
 
 import { type Course, type CourseStatus, coursesStore, useCourses } from "./store"
 
+function CourseRowMenu({
+  onEdit,
+  onDelete,
+}: {
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null)
+
+  function handleOpen(e: React.MouseEvent<HTMLButtonElement>) {
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    setAnchor({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+  }
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <button
+        className="flex items-center justify-center rounded p-1 hover:bg-muted"
+        onClick={handleOpen}
+        aria-label="Course options"
+      >
+        <DotsThreeVerticalIcon className="size-4" />
+      </button>
+
+      {anchor && (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setAnchor(null)}
+          />
+          <div
+            className="fixed z-20 w-36 rounded-md border bg-popover py-1 shadow-md"
+            style={{ top: anchor.top, right: anchor.right }}
+          >
+            <button
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted"
+              onClick={() => { setAnchor(null); onEdit() }}
+            >
+              <PencilSimpleIcon className="size-3.5" />
+              Edit
+            </button>
+            <button
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-muted"
+              onClick={() => { setAnchor(null); onDelete() }}
+            >
+              <TrashIcon className="size-3.5" />
+              Delete
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function CoursesPage() {
   const router = useRouter()
   const courses = useCourses()
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<"all" | CourseStatus>("all")
+  const [deleteTarget, setDeleteTarget] = useState<Course | null>(null)
 
   const filtered = courses.filter((c) => {
     const matchesSearch =
@@ -165,21 +234,57 @@ export default function CoursesPage() {
                 </div>
 
                 {/* Right column */}
-                <div className="shrink-0 text-right">
-                  {course.price && (
-                    <p className="text-sm font-medium">${course.price}</p>
-                  )}
-                  {course.students > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      {course.students.toLocaleString()} students
-                    </p>
-                  )}
+                <div className="flex shrink-0 items-center gap-3">
+                  <div className="text-right">
+                    {course.price && (
+                      <p className="text-sm font-medium">${course.price}</p>
+                    )}
+                    {course.students > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {course.students.toLocaleString()} students
+                      </p>
+                    )}
+                  </div>
+                  <CourseRowMenu
+                    onEdit={() => handleSelectCourse(course)}
+                    onDelete={() => setDeleteTarget(course)}
+                  />
                 </div>
               </div>
             </Card>
           ))}
         </div>
       )}
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <WarningIcon className="size-4 text-destructive" />
+              Delete course
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{deleteTarget?.title || "this course"}</strong>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleteTarget) {
+                  coursesStore.delete(deleteTarget.id)
+                  setDeleteTarget(null)
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -203,6 +203,11 @@ export const coursesStore = {
       : [...courses, course]
     notify()
   },
+
+  delete(id: string) {
+    courses = courses.filter((c) => c.id !== id)
+    notify()
+  },
 }
 
 export function useCourses(): Course[] {
