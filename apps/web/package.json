@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
     "@phosphor-icons/react": "^2.1.10",
     "@workspace/db": "workspace:*",
     "@workspace/ui": "workspace:*",
@@ -20,6 +21,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-dropzone": "^15.0.0",
+    "react-hook-form": "^7.71.2",
     "swr": "^2.4.1",
     "zod": "^4.3.6"
   },

@@ -103,11 +103,3 @@ export const publishSchema = z
     }
   })
 
-export function collectErrors(
-  result: z.SafeParseReturnType<unknown, unknown>
-): Record<string, string> {
-  if (result.success) return {}
-  return Object.fromEntries(
-    result.error.errors.map((e) => [String(e.path[0]), e.message])
-  )
-}

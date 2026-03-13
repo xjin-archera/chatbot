@@ -33,8 +33,13 @@ import { Separator } from "@workspace/ui/components/separator"
 import { Switch } from "@workspace/ui/components/switch"
 import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { Textarea } from "@workspace/ui/components/textarea"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Suspense, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
+import { useForm } from "react-hook-form"
+import useSWR from "swr"
+import useSWRMutation from "swr/mutation"
+import { useSWRConfig } from "swr"
 
 import { DropZone } from "@/components/dropzone"
 import { Field } from "@/components/field"
@@ -42,18 +47,17 @@ import { LessonIcon, lessonTypeLabel } from "@/components/lesson-icon"
 import { NativeSelect } from "@/components/native-select"
 import { RadioItem } from "@/components/radio-item"
 import { Sheet } from "@/components/sheet"
-import useSWR from "swr"
 
 import {
   type Course,
   type Lesson,
-  type LessonType,
   type Module,
   type PublishForm,
   type Question,
   coursesStore,
+  useCourses,
 } from "../store"
-import { collectErrors, courseDetailsSchema, lessonSchema, publishSchema } from "../schemas"
+import { courseDetailsSchema, lessonSchema, publishSchema } from "../schemas"
 
 // ============ EDITABLE MODULE TITLE ============
 
@@ -122,34 +126,35 @@ function LessonEditorSheet({
   onSave: (updated: Lesson) => void
   onDelete: () => void
 }) {
-  const [form, setForm] = useState<Lesson>(
-    lesson ?? { id: "", title: "", type: "video" }
-  )
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const {
+    register,
+    handleSubmit,
+    watch,
+    reset,
+    setValue,
+    formState: { errors },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } = useForm<Lesson>({
+    resolver: zodResolver(lessonSchema) as any,
+    defaultValues: lesson ?? { id: "", title: "", type: "video" },
+  })
 
-  // Reset form when lesson changes
-  if (lesson && form.id !== lesson.id) {
-    setForm(lesson)
-    setErrors({})
-  }
+  const type = watch("type")
+  const questions = (watch("questions") ?? []) as Question[]
 
-  function update<K extends keyof Lesson>(key: K, value: Lesson[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-    setErrors((e) => {
-      const n = { ...e }
-      delete n[key as string]
-      return n
-    })
-  }
-
-  function handleSave() {
-    const result = lessonSchema.safeParse(form)
-    if (!result.success) {
-      setErrors(collectErrors(result))
-      return
+  // Reset when lesson changes
+  const prevLessonIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (lesson && lesson.id !== prevLessonIdRef.current) {
+      prevLessonIdRef.current = lesson.id
+      reset(lesson)
     }
-    onSave(form)
-  }
+  }, [lesson, reset])
+
+  // Keep numQuestions in sync with the questions array
+  useEffect(() => {
+    setValue("numQuestions", questions.length, { shouldValidate: false })
+  }, [questions.length, setValue])
 
   function addQuestion() {
     const newQ: Question = {
@@ -162,53 +167,52 @@ function LessonEditorSheet({
         { id: "d", text: "" },
       ],
     }
-    const updated = [...(form.questions ?? []), newQ]
-    update("questions", updated)
-    update("numQuestions", updated.length)
+    setValue("questions", [...questions, newQ])
   }
 
-  function removeQuestion(qId: string) {
-    const updated = (form.questions ?? []).filter((q) => q.id !== qId)
-    update("questions", updated)
-    update("numQuestions", updated.length)
+  function removeQuestionAt(qi: number) {
+    setValue("questions", questions.filter((_, i) => i !== qi))
   }
 
-  function updateQuestion(qId: string, key: "text" | "correctOptionId", value: string) {
-    update(
-      "questions",
-      (form.questions ?? []).map((q) => (q.id === qId ? { ...q, [key]: value } : q))
-    )
+  function updateQuestionField(
+    qi: number,
+    key: "text" | "correctOptionId",
+    value: string
+  ) {
+    const updated = [...questions]
+    updated[qi] = { ...updated[qi]!, [key]: value } as Question
+    setValue("questions", updated)
   }
 
-  function updateOption(qId: string, optId: string, text: string) {
-    update(
-      "questions",
-      (form.questions ?? []).map((q) =>
-        q.id === qId
-          ? { ...q, options: q.options.map((o) => (o.id === optId ? { ...o, text } : o)) }
-          : q
-      )
-    )
+  function updateOptionText(qi: number, optId: string, text: string) {
+    const updated = [...questions]
+    const q = updated[qi]!
+    updated[qi] = {
+      ...q,
+      options: q.options.map((o) => (o.id === optId ? { ...o, text } : o)),
+    }
+    setValue("questions", updated)
   }
 
   return (
     <Sheet open={open} onClose={onClose} title="Edit Lesson">
-      <div className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit((data) => onSave(data as Lesson))} className="flex flex-col gap-4">
+        {/* Hidden id field so the lesson id is included in submitted data */}
+        <input type="hidden" {...register("id")} />
+
         <Field label="Title" required>
           <Input
-            value={form.title}
-            onChange={(e) => update("title", e.target.value)}
+            {...register("title")}
             placeholder="Lesson title..."
           />
-          {errors.title && <p className="text-xs text-destructive mt-0.5">{errors.title}</p>}
+          {errors.title && (
+            <p className="text-xs text-destructive mt-0.5">{errors.title.message}</p>
+          )}
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Type">
-            <NativeSelect
-              value={form.type}
-              onChange={(e) => update("type", e.target.value as LessonType)}
-            >
+            <NativeSelect {...register("type")}>
               <option value="video">Video</option>
               <option value="article">Article</option>
               <option value="quiz">Quiz</option>
@@ -217,8 +221,7 @@ function LessonEditorSheet({
           </Field>
           <Field label="Duration">
             <Input
-              value={form.duration ?? ""}
-              onChange={(e) => update("duration", e.target.value)}
+              {...register("duration")}
               placeholder="e.g. 12:30"
             />
           </Field>
@@ -226,8 +229,7 @@ function LessonEditorSheet({
 
         <Field label="Description">
           <Textarea
-            value={form.description ?? ""}
-            onChange={(e) => update("description", e.target.value)}
+            {...register("description")}
             placeholder="Brief description of this lesson..."
             className="min-h-20"
           />
@@ -236,31 +238,34 @@ function LessonEditorSheet({
         <Separator />
 
         {/* Type-specific content */}
-        {form.type === "video" && (
+        {type === "video" && (
           <div className="flex flex-col gap-3">
             <Field label="Video URL" required>
               <Input
-                value={form.videoUrl ?? ""}
-                onChange={(e) => update("videoUrl", e.target.value)}
+                {...register("videoUrl")}
                 placeholder="https://..."
               />
-              {errors.videoUrl && <p className="text-xs text-destructive mt-0.5">{errors.videoUrl}</p>}
+              {errors.videoUrl && (
+                <p className="text-xs text-destructive mt-0.5">{errors.videoUrl.message}</p>
+              )}
             </Field>
             <DropZone
               label="Or drag and drop a video file"
               accept={{ "video/*": [] }}
               className="h-24"
-              onFiles={(files) => { const f = files[0]; if (f) update("videoUrl", URL.createObjectURL(f)) }}
+              onFiles={(files) => {
+                const f = files[0]
+                if (f) setValue("videoUrl", URL.createObjectURL(f))
+              }}
             />
           </div>
         )}
 
-        {form.type === "article" && (
+        {type === "article" && (
           <div className="flex flex-col gap-3">
             <Field label="Article Content">
               <Textarea
-                value={form.articleContent ?? ""}
-                onChange={(e) => update("articleContent", e.target.value)}
+                {...register("articleContent")}
                 placeholder="Write your article content here..."
                 className="min-h-32"
               />
@@ -273,7 +278,7 @@ function LessonEditorSheet({
           </div>
         )}
 
-        {form.type === "quiz" && (
+        {type === "quiz" && (
           <Card>
             <CardContent className="flex flex-col gap-3 p-4">
               <Field label="Passing Score (%)" required>
@@ -282,24 +287,38 @@ function LessonEditorSheet({
                   placeholder="70"
                   min={0}
                   max={100}
-                  value={form.passingScore ?? ""}
-                  onChange={(e) => update("passingScore", e.target.value ? Number(e.target.value) : undefined)}
+                  {...register("passingScore", { valueAsNumber: true })}
                 />
-                {errors.passingScore && <p className="text-xs text-destructive mt-0.5">{errors.passingScore}</p>}
+                {errors.passingScore && (
+                  <p className="text-xs text-destructive mt-0.5">{errors.passingScore.message}</p>
+                )}
               </Field>
 
-              {(form.questions ?? []).map((q, qi) => (
-                <div key={q.id} className="rounded-md border border-border p-3 flex flex-col gap-2">
+              {questions.map((q, qi) => (
+                <div
+                  key={q.id}
+                  className="rounded-md border border-border p-3 flex flex-col gap-2"
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-muted-foreground">Question {qi + 1}</span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeQuestion(q.id)}>
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Question {qi + 1}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => removeQuestionAt(qi)}
+                    >
                       <TrashIcon className="h-4 w-4" />
                     </Button>
                   </div>
                   <Input
                     placeholder="Question text..."
                     value={q.text}
-                    onChange={(e) => updateQuestion(q.id, "text", e.target.value)}
+                    onChange={(e) =>
+                      updateQuestionField(qi, "text", e.target.value)
+                    }
                   />
                   <div className="flex flex-col gap-1.5 mt-1">
                     {q.options.map((opt) => (
@@ -308,14 +327,20 @@ function LessonEditorSheet({
                           type="radio"
                           name={`correct-${q.id}`}
                           checked={q.correctOptionId === opt.id}
-                          onChange={() => updateQuestion(q.id, "correctOptionId", opt.id)}
+                          onChange={() =>
+                            updateQuestionField(qi, "correctOptionId", opt.id)
+                          }
                           className="accent-primary"
                         />
-                        <span className="text-xs font-medium text-muted-foreground uppercase w-4">{opt.id}</span>
+                        <span className="text-xs font-medium text-muted-foreground uppercase w-4">
+                          {opt.id}
+                        </span>
                         <Input
                           placeholder={`Option ${opt.id.toUpperCase()}...`}
                           value={opt.text}
-                          onChange={(e) => updateOption(q.id, opt.id, e.target.value)}
+                          onChange={(e) =>
+                            updateOptionText(qi, opt.id, e.target.value)
+                          }
                           className="h-8 text-sm"
                         />
                       </div>
@@ -325,26 +350,31 @@ function LessonEditorSheet({
               ))}
 
               <div className="flex flex-col gap-1">
-                <Button variant="outline" size="sm" className="w-fit" onClick={addQuestion}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-fit"
+                  onClick={addQuestion}
+                >
                   <PlusIcon />
                   Add Question
                 </Button>
                 {errors.numQuestions && (
-                  <p className="text-xs text-destructive">{errors.numQuestions}</p>
+                  <p className="text-xs text-destructive">{errors.numQuestions.message}</p>
                 )}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {form.type === "assignment" && (
+        {type === "assignment" && (
           <div className="flex flex-col gap-3">
             <Field label="Assignment Brief">
               <Textarea
+                {...register("assignmentBrief")}
                 placeholder="Describe the assignment task..."
                 className="min-h-24"
-                value={form.assignmentBrief ?? ""}
-                onChange={(e) => update("assignmentBrief", e.target.value)}
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
@@ -352,25 +382,24 @@ function LessonEditorSheet({
                 <Input
                   type="number"
                   placeholder="100"
-                  value={form.maxScore ?? ""}
-                  onChange={(e) => update("maxScore", e.target.value ? Number(e.target.value) : undefined)}
+                  {...register("maxScore", { valueAsNumber: true })}
                 />
-                {errors.maxScore && <p className="text-xs text-destructive mt-0.5">{errors.maxScore}</p>}
+                {errors.maxScore && (
+                  <p className="text-xs text-destructive mt-0.5">{errors.maxScore.message}</p>
+                )}
               </Field>
               <Field label="Days to Complete" required>
                 <Input
                   type="number"
                   placeholder="7"
-                  value={form.daysToComplete ?? ""}
-                  onChange={(e) => update("daysToComplete", e.target.value ? Number(e.target.value) : undefined)}
+                  {...register("daysToComplete", { valueAsNumber: true })}
                 />
-                {errors.daysToComplete && <p className="text-xs text-destructive mt-0.5">{errors.daysToComplete}</p>}
+                {errors.daysToComplete && (
+                  <p className="text-xs text-destructive mt-0.5">{errors.daysToComplete.message}</p>
+                )}
               </Field>
             </div>
-            <DropZone
-              label="Upload assignment template"
-              className="h-20"
-            />
+            <DropZone label="Upload assignment template" className="h-20" />
           </div>
         )}
 
@@ -381,8 +410,7 @@ function LessonEditorSheet({
           hint="One resource per line. Students can download these materials."
         >
           <Textarea
-            value={form.resources ?? ""}
-            onChange={(e) => update("resources", e.target.value)}
+            {...register("resources")}
             placeholder="https://example.com/slides.pdf&#10;https://example.com/code.zip"
             className="min-h-20"
           />
@@ -391,6 +419,7 @@ function LessonEditorSheet({
         {/* Action row */}
         <div className="flex items-center justify-between pt-2">
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className="text-destructive hover:text-destructive"
@@ -400,40 +429,105 @@ function LessonEditorSheet({
             Delete
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSave}>
+            <Button type="submit" size="sm">
               Save
             </Button>
           </div>
         </div>
-      </div>
+      </form>
     </Sheet>
   )
 }
 
 // ============ COURSE EDITOR ============
 
+type CourseFields = Pick<
+  Course,
+  | "title"
+  | "description"
+  | "category"
+  | "level"
+  | "instructor"
+  | "price"
+  | "duration"
+  | "tags"
+  | "learningOutcomes"
+  | "thumbnail"
+>
+
 function CourseEditor({
   course,
   onBack,
   onPreview,
   onPublish,
-  onChange,
-  courseErrors,
-  setCourseErrors,
 }: {
   course: Course
   onBack: () => void
   onPreview: () => void
   onPublish: () => void
-  onChange: (course: Course) => void
-  courseErrors: Record<string, string>
-  setCourseErrors: (errors: Record<string, string>) => void
 }) {
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    getValues,
+    formState: { errors },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } = useForm<CourseFields>({
+    resolver: zodResolver(courseDetailsSchema) as any,
+    defaultValues: {
+      title: course.title,
+      description: course.description,
+      category: course.category,
+      level: course.level,
+      instructor: course.instructor,
+      price: course.price,
+      duration: course.duration,
+      tags: course.tags,
+      learningOutcomes: course.learningOutcomes,
+      thumbnail: course.thumbnail,
+    },
+  })
+
+  const isNew = /^c\d{10,}$/.test(course.id)
+  const { mutate } = useSWRConfig()
+
+  const { trigger: putDraft, isMutating: isSaving } = useSWRMutation(
+    !isNew ? `/api/courses/${course.id}` : null,
+    async (url, { arg }: { arg: Course }) => {
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: arg.title,
+          description: arg.description,
+          instructor: arg.instructor,
+          duration: arg.duration,
+          students: arg.students,
+          category: arg.category,
+          level: arg.level,
+          price: arg.price,
+          tags: arg.tags,
+          thumbnail: arg.thumbnail,
+          learningOutcomes: arg.learningOutcomes,
+          status: arg.status,
+          modules: arg.modules.map((m) => ({
+            title: m.title,
+            lessons: m.lessons.map((l) => ({ ...l })),
+          })),
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to save draft")
+      return res.json() as Promise<Course>
+    }
+  )
+
   const [tab, setTab] = useState("details")
-  const [saved, setSaved] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle")
+  const [modules, setModules] = useState<Module[]>(course.modules)
   const [lessonSheet, setLessonSheet] = useState<{
     open: boolean
     moduleId: string | null
@@ -443,29 +537,33 @@ function CourseEditor({
     "open"
   )
 
-  function updateField<K extends keyof Course>(key: K, value: Course[K]) {
-    onChange({ ...course, [key]: value })
-    const n = { ...courseErrors }
-    delete n[key as string]
-    setCourseErrors(n)
+  function buildCourse(): Course {
+    return { ...course, ...getValues(), modules }
   }
 
-  function validateCourse(): boolean {
-    const result = courseDetailsSchema.safeParse(course)
-    if (!result.success) {
-      setCourseErrors(collectErrors(result))
-      setTab("details")
-      return false
+  async function save() {
+    const updated = buildCourse()
+    coursesStore.upsert(updated)
+    if (!isNew) {
+      try {
+        await putDraft(updated)
+        await mutate(`/api/courses/${course.id}`)
+      } catch {
+        setSaveStatus("error")
+        setTimeout(() => setSaveStatus("idle"), 3000)
+        return
+      }
     }
-    setCourseErrors({})
-    return true
+    setSaveStatus("saved")
+    setTimeout(() => setSaveStatus("idle"), 2000)
   }
 
-  function save() {
-    if (!validateCourse()) return
-    coursesStore.upsert(course)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  function handlePublishClick() {
+    handleSubmit(() => {
+      const updated = buildCourse()
+      coursesStore.upsert(updated)
+      onPublish()
+    })()
   }
 
   function addModule() {
@@ -474,20 +572,16 @@ function CourseEditor({
       title: "New Module",
       lessons: [],
     }
-    updateField("modules", [...course.modules, newModule])
+    setModules((prev) => [...prev, newModule])
   }
 
   function deleteModule(moduleId: string) {
-    updateField(
-      "modules",
-      course.modules.filter((m) => m.id !== moduleId)
-    )
+    setModules((prev) => prev.filter((m) => m.id !== moduleId))
   }
 
   function updateModuleTitle(moduleId: string, title: string) {
-    updateField(
-      "modules",
-      course.modules.map((m) => (m.id === moduleId ? { ...m, title } : m))
+    setModules((prev) =>
+      prev.map((m) => (m.id === moduleId ? { ...m, title } : m))
     )
   }
 
@@ -497,18 +591,16 @@ function CourseEditor({
       title: "New Lesson",
       type: "video",
     }
-    updateField(
-      "modules",
-      course.modules.map((m) =>
+    setModules((prev) =>
+      prev.map((m) =>
         m.id === moduleId ? { ...m, lessons: [...m.lessons, newLesson] } : m
       )
     )
   }
 
   function deleteLesson(moduleId: string, lessonId: string) {
-    updateField(
-      "modules",
-      course.modules.map((m) =>
+    setModules((prev) =>
+      prev.map((m) =>
         m.id === moduleId
           ? { ...m, lessons: m.lessons.filter((l) => l.id !== lessonId) }
           : m
@@ -523,9 +615,8 @@ function CourseEditor({
 
   function saveLesson(updated: Lesson) {
     if (!lessonSheet.moduleId) return
-    updateField(
-      "modules",
-      course.modules.map((m) =>
+    setModules((prev) =>
+      prev.map((m) =>
         m.id === lessonSheet.moduleId
           ? {
               ...m,
@@ -538,6 +629,9 @@ function CourseEditor({
     )
     setLessonSheet({ open: false, moduleId: null, lesson: null })
   }
+
+  // current thumbnail for preview (controlled via setValue)
+  const thumbnail = getValues("thumbnail")
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -562,17 +656,20 @@ function CourseEditor({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {saved && (
+          {saveStatus === "saved" && (
             <span className="text-xs text-emerald-600">✓ Saved</span>
           )}
-          <Button variant="outline" size="sm" onClick={save}>
-            Save Draft
+          {saveStatus === "error" && (
+            <span className="text-xs text-destructive">Failed to save</span>
+          )}
+          <Button variant="outline" size="sm" type="button" onClick={save} disabled={isSaving}>
+            {isSaving ? "Saving…" : "Save Draft"}
           </Button>
-          <Button variant="outline" size="sm" onClick={onPreview}>
+          <Button variant="outline" size="sm" type="button" onClick={onPreview}>
             <EyeIcon />
             Preview
           </Button>
-          <Button size="sm" onClick={onPublish}>
+          <Button size="sm" type="button" onClick={handlePublishClick}>
             <RocketIcon />
             Publish
           </Button>
@@ -609,9 +706,9 @@ function CourseEditor({
 
               <div className="flex flex-col gap-1.5">
                 <Label>Thumbnail</Label>
-                {course.thumbnail && (
+                {thumbnail && (
                   <img
-                    src={course.thumbnail}
+                    src={thumbnail}
                     alt="Thumbnail preview"
                     className="h-36 w-full rounded object-cover border border-border"
                   />
@@ -621,35 +718,37 @@ function CourseEditor({
                   accept={{ "image/png": [".png"], "image/jpeg": [".jpg", ".jpeg"] }}
                   maxSize={2 * 1024 * 1024}
                   className="h-36"
-                  onFiles={(files) => { const f = files[0]; if (f) updateField("thumbnail", URL.createObjectURL(f)) }}
+                  onFiles={(files) => {
+                    const f = files[0]
+                    if (f) setValue("thumbnail", URL.createObjectURL(f))
+                  }}
                 />
               </div>
 
               <Field label="Course Title" required>
                 <Input
-                  value={course.title}
-                  onChange={(e) => updateField("title", e.target.value)}
+                  {...register("title")}
                   placeholder="Enter course title..."
                 />
-                {courseErrors.title && <p className="text-xs text-destructive mt-0.5">{courseErrors.title}</p>}
+                {errors.title && (
+                  <p className="text-xs text-destructive mt-0.5">{errors.title.message}</p>
+                )}
               </Field>
 
               <Field label="Description" required>
                 <Textarea
-                  value={course.description}
-                  onChange={(e) => updateField("description", e.target.value)}
+                  {...register("description")}
                   placeholder="Describe what students will learn..."
                   className="min-h-24"
                 />
-                {courseErrors.description && <p className="text-xs text-destructive mt-0.5">{courseErrors.description}</p>}
+                {errors.description && (
+                  <p className="text-xs text-destructive mt-0.5">{errors.description.message}</p>
+                )}
               </Field>
 
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Category">
-                  <NativeSelect
-                    value={course.category}
-                    onChange={(e) => updateField("category", e.target.value)}
-                  >
+                  <NativeSelect {...register("category")}>
                     <option>Frontend Development</option>
                     <option>Backend Development</option>
                     <option>Programming</option>
@@ -660,10 +759,7 @@ function CourseEditor({
                 </Field>
 
                 <Field label="Level">
-                  <NativeSelect
-                    value={course.level}
-                    onChange={(e) => updateField("level", e.target.value)}
-                  >
+                  <NativeSelect {...register("level")}>
                     <option>Beginner</option>
                     <option>Intermediate</option>
                     <option>Advanced</option>
@@ -673,11 +769,12 @@ function CourseEditor({
 
               <Field label="Instructor" required>
                 <Input
-                  value={course.instructor}
-                  onChange={(e) => updateField("instructor", e.target.value)}
+                  {...register("instructor")}
                   placeholder="Instructor name..."
                 />
-                {courseErrors.instructor && <p className="text-xs text-destructive mt-0.5">{courseErrors.instructor}</p>}
+                {errors.instructor && (
+                  <p className="text-xs text-destructive mt-0.5">{errors.instructor.message}</p>
+                )}
               </Field>
             </div>
 
@@ -685,42 +782,46 @@ function CourseEditor({
             <div className="col-span-1 flex flex-col gap-4 pt-8">
               <Field label="Price (USD)">
                 <Input
-                  value={course.price ?? ""}
-                  onChange={(e) => updateField("price", e.target.value)}
+                  {...register("price")}
                   placeholder="e.g. 49"
                 />
-                {courseErrors.price && <p className="text-xs text-destructive mt-0.5">{courseErrors.price}</p>}
+                {errors.price && (
+                  <p className="text-xs text-destructive mt-0.5">{errors.price.message}</p>
+                )}
               </Field>
 
               <Field label="Duration">
-                <NativeSelect
-                  value={course.duration}
-                  onChange={(e) => updateField("duration", e.target.value)}
-                >
+                <NativeSelect {...register("duration")}>
                   <option>1h – 3h</option>
                   <option>3h – 6h</option>
                   <option>6h – 10h</option>
                   <option>10h+</option>
-                  {course.duration && !["1h – 3h","3h – 6h","6h – 10h","10h+"].includes(course.duration) && (
-                    <option value={course.duration}>{course.duration}</option>
-                  )}
+                  {course.duration &&
+                    !["1h – 3h", "3h – 6h", "6h – 10h", "10h+"].includes(
+                      course.duration
+                    ) && (
+                      <option value={course.duration}>{course.duration}</option>
+                    )}
                 </NativeSelect>
               </Field>
 
               <Field label="Tags" hint="Comma-separated">
                 <Input
-                  value={course.tags ?? ""}
-                  onChange={(e) => updateField("tags", e.target.value)}
+                  {...register("tags")}
                   placeholder="react, javascript, hooks"
                 />
               </Field>
             </div>
 
-            <Field label="What You'll Learn" hint="One outcome per line — shown on the course preview page">
+            <Field
+              label="What You'll Learn"
+              hint="One outcome per line — shown on the course preview page"
+            >
               <Textarea
-                value={course.learningOutcomes ?? ""}
-                onChange={(e) => updateField("learningOutcomes", e.target.value)}
-                placeholder={"Understand core concepts and practical applications\nBuild real-world projects from scratch\nApply best practices used in production\nGain hands-on experience with modern tooling"}
+                {...register("learningOutcomes")}
+                placeholder={
+                  "Understand core concepts and practical applications\nBuild real-world projects from scratch\nApply best practices used in production\nGain hands-on experience with modern tooling"
+                }
                 className="min-h-28"
               />
             </Field>
@@ -738,7 +839,7 @@ function CourseEditor({
               </Button>
             </div>
 
-            {course.modules.length === 0 ? (
+            {modules.length === 0 ? (
               <div className="flex flex-col items-center justify-center border border-dashed border-border py-14 text-center">
                 <BookOpenIcon className="mb-2 size-7 text-muted-foreground" />
                 <p className="text-sm font-medium">No modules yet</p>
@@ -748,7 +849,7 @@ function CourseEditor({
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {course.modules.map((module) => (
+                {modules.map((module) => (
                   <div key={module.id} className="border border-border">
                     {/* Module header */}
                     <div className="flex items-center gap-2 bg-muted/40 px-3 py-2">
@@ -890,8 +991,7 @@ function CourseEditor({
               </p>
               <Field label="Course Duration">
                 <Input
-                  value={course.duration}
-                  onChange={(e) => updateField("duration", e.target.value)}
+                  {...register("duration")}
                   placeholder="e.g. 8h 30m"
                 />
               </Field>
@@ -947,7 +1047,8 @@ function CourseEditor({
         }
         onSave={saveLesson}
         onDelete={() =>
-          lessonSheet.moduleId && lessonSheet.lesson &&
+          lessonSheet.moduleId &&
+          lessonSheet.lesson &&
           deleteLesson(lessonSheet.moduleId, lessonSheet.lesson.id)
         }
       />
@@ -1104,7 +1205,9 @@ function CoursePreview({
                     <div key={lesson.id} className="border-t border-border">
                       <div
                         className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-muted/20"
-                        onClick={() => setExpandedLessonId(isExpanded ? null : lesson.id)}
+                        onClick={() =>
+                          setExpandedLessonId(isExpanded ? null : lesson.id)
+                        }
                       >
                         <LessonIcon type={lesson.type} />
                         <span className="flex-1 text-xs">{lesson.title}</span>
@@ -1120,10 +1223,12 @@ function CoursePreview({
 
                       {isExpanded && (
                         <div className="border-t border-border bg-muted/10 px-4 py-4">
-                          {lesson.type === "video" && (
-                            lesson.videoUrl ? (
+                          {lesson.type === "video" &&
+                            (lesson.videoUrl ? (
                               (() => {
-                                const embedUrl = getYoutubeEmbedUrl(lesson.videoUrl)
+                                const embedUrl = getYoutubeEmbedUrl(
+                                  lesson.videoUrl
+                                )
                                 return embedUrl ? (
                                   <iframe
                                     src={embedUrl}
@@ -1132,38 +1237,56 @@ function CoursePreview({
                                     allowFullScreen
                                   />
                                 ) : (
-                                  <video controls src={lesson.videoUrl} className="w-full rounded" />
+                                  <video
+                                    controls
+                                    src={lesson.videoUrl}
+                                    className="w-full rounded"
+                                  />
                                 )
                               })()
                             ) : (
-                              <p className="text-sm text-muted-foreground">No video uploaded yet.</p>
-                            )
-                          )}
+                              <p className="text-sm text-muted-foreground">
+                                No video uploaded yet.
+                              </p>
+                            ))}
 
-                          {lesson.type === "article" && (
-                            lesson.articleContent ? (
-                              <div className="text-sm whitespace-pre-wrap">{lesson.articleContent}</div>
+                          {lesson.type === "article" &&
+                            (lesson.articleContent ? (
+                              <div className="text-sm whitespace-pre-wrap">
+                                {lesson.articleContent}
+                              </div>
                             ) : (
-                              <p className="text-sm text-muted-foreground">No article content added yet.</p>
-                            )
-                          )}
+                              <p className="text-sm text-muted-foreground">
+                                No article content added yet.
+                              </p>
+                            ))}
 
                           {lesson.type === "quiz" && (
                             <div className="flex flex-col gap-3">
                               <div className="grid grid-cols-2 gap-3">
                                 <div className="rounded-md border border-border p-3">
-                                  <p className="text-xs text-muted-foreground">Questions</p>
-                                  <p className="text-lg font-semibold">{lesson.numQuestions ?? "—"}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Questions
+                                  </p>
+                                  <p className="text-lg font-semibold">
+                                    {lesson.numQuestions ?? "—"}
+                                  </p>
                                 </div>
                                 <div className="rounded-md border border-border p-3">
-                                  <p className="text-xs text-muted-foreground">Passing Score</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Passing Score
+                                  </p>
                                   <p className="text-lg font-semibold">
-                                    {lesson.passingScore != null ? `${lesson.passingScore}%` : "—"}
+                                    {lesson.passingScore != null
+                                      ? `${lesson.passingScore}%`
+                                      : "—"}
                                   </p>
                                 </div>
                               </div>
                               {lesson.description && (
-                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{lesson.description}</p>
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                  {lesson.description}
+                                </p>
                               )}
                             </div>
                           )}
@@ -1171,18 +1294,30 @@ function CoursePreview({
                           {lesson.type === "assignment" && (
                             <div className="flex flex-col gap-3">
                               {lesson.assignmentBrief ? (
-                                <div className="text-sm whitespace-pre-wrap">{lesson.assignmentBrief}</div>
+                                <div className="text-sm whitespace-pre-wrap">
+                                  {lesson.assignmentBrief}
+                                </div>
                               ) : (
-                                <p className="text-sm text-muted-foreground">No brief added yet.</p>
+                                <p className="text-sm text-muted-foreground">
+                                  No brief added yet.
+                                </p>
                               )}
                               <div className="grid grid-cols-2 gap-3">
                                 <div className="rounded-md border border-border p-3">
-                                  <p className="text-xs text-muted-foreground">Max Score</p>
-                                  <p className="text-lg font-semibold">{lesson.maxScore ?? "—"}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Max Score
+                                  </p>
+                                  <p className="text-lg font-semibold">
+                                    {lesson.maxScore ?? "—"}
+                                  </p>
                                 </div>
                                 <div className="rounded-md border border-border p-3">
-                                  <p className="text-xs text-muted-foreground">Days to Complete</p>
-                                  <p className="text-lg font-semibold">{lesson.daysToComplete ?? "—"}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Days to Complete
+                                  </p>
+                                  <p className="text-lg font-semibold">
+                                    {lesson.daysToComplete ?? "—"}
+                                  </p>
                                 </div>
                               </div>
                             </div>
@@ -1197,7 +1332,6 @@ function CoursePreview({
           </div>
         )}
       </div>
-
     </div>
   )
 }
@@ -1206,68 +1340,92 @@ function CoursePreview({
 
 function PublishDialog({
   course,
-  form,
-  onFormChange,
-  onConfirm,
+  onSubmit,
   onCancel,
-  errors,
 }: {
   course: Course
-  form: PublishForm
-  onFormChange: (form: PublishForm) => void
-  onConfirm: () => void
+  onSubmit: (data: PublishForm) => Promise<void>
   onCancel: () => void
-  errors: Record<string, string>
 }) {
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<PublishForm>({
+    resolver: zodResolver(publishSchema),
+    defaultValues: { mode: "immediate", scheduleDate: "" },
+  })
+
+  const mode = watch("mode")
+
+  async function onFormSubmit(data: PublishForm) {
+    try {
+      await onSubmit(data)
+    } catch {
+      setError("root", { message: "Failed to publish. Please try again." })
+    }
+  }
+
   return (
     <DialogContent showCloseButton={false}>
-      <DialogHeader>
-        <DialogTitle>Publish Course</DialogTitle>
-        <DialogDescription>
-          Make &ldquo;{course.title}&rdquo; available to students.
-        </DialogDescription>
-      </DialogHeader>
+      <form onSubmit={handleSubmit(onFormSubmit)}>
+        <DialogHeader>
+          <DialogTitle>Publish Course</DialogTitle>
+          <DialogDescription>
+            Make &ldquo;{course.title}&rdquo; available to students.
+          </DialogDescription>
+        </DialogHeader>
 
-      <div className="flex flex-col gap-2">
-        <RadioItem
-          id="publish-immediate"
-          label="Publish immediately"
-          description="Students can access the course right away."
-          checked={form.mode === "immediate"}
-          onChange={() => onFormChange({ ...form, mode: "immediate" })}
-        />
-        <RadioItem
-          id="publish-schedule"
-          label="Schedule for later"
-          description="Choose a date and time to publish."
-          checked={form.mode === "schedule"}
-          onChange={() => onFormChange({ ...form, mode: "schedule" })}
-        />
-        {form.mode === "schedule" && (
-          <div className="px-1 pt-1">
-            <Input
-              type="datetime-local"
-              value={form.scheduleDate}
-              onChange={(e) =>
-                onFormChange({ ...form, scheduleDate: e.target.value })
-              }
-            />
-            {errors.scheduleDate && (
-              <p className="text-xs text-destructive mt-0.5">{errors.scheduleDate}</p>
-            )}
-          </div>
-        )}
-      </div>
+        <div className="flex flex-col gap-2 py-4">
+          <RadioItem
+            id="publish-immediate"
+            label="Publish immediately"
+            description="Students can access the course right away."
+            checked={mode === "immediate"}
+            onChange={() => setValue("mode", "immediate")}
+          />
+          <RadioItem
+            id="publish-schedule"
+            label="Schedule for later"
+            description="Choose a date and time to publish."
+            checked={mode === "schedule"}
+            onChange={() => setValue("mode", "schedule")}
+          />
+          {mode === "schedule" && (
+            <div className="px-1 pt-1">
+              <Input type="datetime-local" {...register("scheduleDate")} />
+              {errors.scheduleDate && (
+                <p className="text-xs text-destructive mt-0.5">
+                  {errors.scheduleDate.message}
+                </p>
+              )}
+            </div>
+          )}
+          {errors.root && (
+            <p className="text-xs text-destructive mt-0.5">
+              {errors.root.message}
+            </p>
+          )}
+        </div>
 
-      <DialogFooter>
-        <Button variant="outline" size="sm" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button size="sm" onClick={onConfirm}>
-          <CheckCircleIcon />
-          {form.mode === "immediate" ? "Publish Now" : "Schedule"}
-        </Button>
-      </DialogFooter>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" disabled={isSubmitting}>
+            <CheckCircleIcon />
+            {mode === "immediate" ? "Publish Now" : "Schedule"}
+          </Button>
+        </DialogFooter>
+      </form>
     </DialogContent>
   )
 }
@@ -1279,15 +1437,81 @@ function EditPageContent() {
   const searchParams = useSearchParams()
   const id = searchParams.get("id") ?? ""
 
-  const { data: course, isLoading } = useSWR<Course>(
-    id ? `/api/courses/${id}` : null,
+  const isNew = /^c\d{10,}$/.test(id)
+
+  const { data: apiCourse, isLoading } = useSWR<Course>(
+    !isNew && id ? `/api/courses/${id}` : null,
     (url: string) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(r)))
   )
 
+  const storeCourses = useCourses()
+  const course = isNew ? storeCourses.find((c) => c.id === id) : apiCourse
+
+  const { mutate } = useSWRConfig()
+
+  const { trigger: publishNew } = useSWRMutation(
+    "/api/courses",
+    async (
+      url,
+      { arg }: { arg: { mode: string; scheduleDate?: string; course: Course } }
+    ) => {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: arg.course.title,
+          description: arg.course.description,
+          instructor: arg.course.instructor,
+          duration: arg.course.duration,
+          students: arg.course.students,
+          category: arg.course.category,
+          level: arg.course.level,
+          price: arg.course.price,
+          tags: arg.course.tags,
+          thumbnail: arg.course.thumbnail,
+          learningOutcomes: arg.course.learningOutcomes,
+          status: arg.mode === "immediate" ? "published" : "draft",
+          modules: arg.course.modules.map((m) => ({
+            title: m.title,
+            lessons: m.lessons.map((l) => ({ ...l })),
+          })),
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to publish course")
+      const saved = (await res.json()) as Course
+      if (arg.mode === "schedule" && arg.scheduleDate) {
+        const pRes = await fetch(`/api/courses/${saved.id}/publish`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "schedule",
+            scheduleDate: arg.scheduleDate,
+          }),
+        })
+        if (!pRes.ok) throw new Error("Failed to schedule course")
+      }
+      return saved
+    }
+  )
+
+  const { trigger: publishExisting } = useSWRMutation(
+    id && !isNew ? `/api/courses/${id}/publish` : null,
+    async (
+      url,
+      { arg }: { arg: { mode: string; scheduleDate?: string } }
+    ) => {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(arg),
+      })
+      if (!res.ok) throw new Error("Failed to publish course")
+      return res.json() as Promise<Course>
+    }
+  )
+
   const [view, setView] = useState<"editor" | "preview">("editor")
-  const [publishForm, setPublishForm] = useState<PublishForm | null>(null)
-  const [publishErrors, setPublishErrors] = useState<Record<string, string>>({})
-  const [courseErrors, setCourseErrors] = useState<Record<string, string>>({})
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false)
 
   if (isLoading) {
     return (
@@ -1301,7 +1525,11 @@ function EditPageContent() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3">
         <p className="text-sm text-muted-foreground">Course not found.</p>
-        <Button variant="outline" size="sm" onClick={() => router.push("/courses")}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => router.push("/courses")}
+        >
           <ArrowLeftIcon />
           Back to Courses
         </Button>
@@ -1309,32 +1537,21 @@ function EditPageContent() {
     )
   }
 
-  function handleChange(updated: Course) {
-    coursesStore.upsert(updated)
-  }
-
   function openPublishDialog() {
-    const result = courseDetailsSchema.safeParse(course)
-    if (!result.success) {
-      setCourseErrors(collectErrors(result))
-      setView("editor")
-      return
-    }
-    setCourseErrors({})
-    setPublishForm({ mode: "immediate", scheduleDate: "" })
+    setPublishDialogOpen(true)
   }
 
-  function handleConfirmPublish() {
-    if (!publishForm) return
-    const result = publishSchema.safeParse(publishForm)
-    if (!result.success) {
-      setPublishErrors(collectErrors(result))
-      return
+  async function handleSubmitPublish(data: PublishForm) {
+    if (!course) return
+    if (isNew) {
+      await publishNew({ mode: data.mode, scheduleDate: data.scheduleDate, course })
+      coursesStore.delete(id)
+    } else {
+      await publishExisting({ mode: data.mode, scheduleDate: data.scheduleDate })
     }
-    setPublishErrors({})
-    coursesStore.upsert({ ...course!, status: "published" })
-    setPublishForm(null)
-    setView("editor")
+    await mutate("/api/courses")
+    setPublishDialogOpen(false)
+    router.push("/courses")
   }
 
   return (
@@ -1345,9 +1562,6 @@ function EditPageContent() {
           onBack={() => router.push("/courses")}
           onPreview={() => setView("preview")}
           onPublish={openPublishDialog}
-          onChange={handleChange}
-          courseErrors={courseErrors}
-          setCourseErrors={setCourseErrors}
         />
       )}
 
@@ -1360,20 +1574,14 @@ function EditPageContent() {
       )}
 
       <Dialog
-        open={!!publishForm}
-        onOpenChange={(open) => !open && setPublishForm(null)}
+        open={publishDialogOpen}
+        onOpenChange={(open) => !open && setPublishDialogOpen(false)}
       >
-        {publishForm && (
+        {publishDialogOpen && (
           <PublishDialog
             course={course}
-            form={publishForm}
-            onFormChange={(f) => {
-              setPublishForm(f)
-              setPublishErrors({})
-            }}
-            onConfirm={handleConfirmPublish}
-            onCancel={() => { setPublishForm(null); setPublishErrors({}) }}
-            errors={publishErrors}
+            onSubmit={handleSubmitPublish}
+            onCancel={() => setPublishDialogOpen(false)}
           />
         )}
       </Dialog>
