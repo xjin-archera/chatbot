@@ -27,8 +27,9 @@ import { Input } from "@workspace/ui/components/input"
 import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import useSWR from "swr"
 
-import { type Course, type CourseStatus, coursesStore, useCourses } from "./store"
+import { type Course, type CourseStatus, coursesStore } from "./store"
 
 function CourseRowMenu({
   onEdit,
@@ -88,7 +89,7 @@ function CourseRowMenu({
 
 export default function CoursesPage() {
   const router = useRouter()
-  const courses = useCourses()
+  const { data: courses = [] } = useSWR<Course[]>("/api/courses", (url: string) => fetch(url).then((r) => r.json()))
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState<"all" | CourseStatus>("all")
   const [deleteTarget, setDeleteTarget] = useState<Course | null>(null)

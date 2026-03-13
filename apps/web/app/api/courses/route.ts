@@ -59,14 +59,32 @@ const courseCreateSchema = z.object({
 export async function GET() {
   try {
     const courses = await prisma.course.findMany({
-      include: { _count: { select: { modules: true } } },
+      include: {
+        modules: {
+          orderBy: { order: "asc" },
+          include: {
+            lessons: {
+              orderBy: { order: "asc" },
+              select: { id: true, title: true, type: true },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     })
 
-    const result = courses.map(({ _count, ...c }) => ({
+    const result = courses.map(({ modules, ...c }) => ({
       ...c,
       status: mapStatus(c.status),
-      moduleCount: _count.modules,
+      modules: modules.map((m) => ({
+        id: m.id,
+        title: m.title,
+        lessons: m.lessons.map((l) => ({
+          id: l.id,
+          title: l.title,
+          type: l.type.toLowerCase() as "video" | "article" | "quiz" | "assignment",
+        })),
+      })),
     }))
 
     return NextResponse.json(result)
