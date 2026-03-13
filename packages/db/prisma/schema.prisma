@@ -6,3 +6,80 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model Course {
+  id               String       @id @default(cuid())
+  title            String
+  description      String
+  status           CourseStatus @default(DRAFT)
+  instructor       String
+  duration         String
+  students         Int          @default(0)
+  category         String
+  level            String
+  price            String?
+  tags             String?
+  thumbnail        String?
+  learningOutcomes String?
+  scheduledAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  modules          Module[]
+}
+
+model Module {
+  id       String   @id @default(cuid())
+  title    String
+  order    Int
+  courseId String
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons  Lesson[]
+}
+
+model Lesson {
+  id              String     @id @default(cuid())
+  title           String
+  type            LessonType
+  order           Int
+  duration        String?
+  description     String?
+  videoUrl        String?
+  articleContent  String?
+  resources       String?
+  numQuestions    Int?
+  passingScore    Int?
+  assignmentBrief String?
+  maxScore        Int?
+  daysToComplete  Int?
+  moduleId        String
+  module          Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  questions       Question[]
+}
+
+model Question {
+  id              String           @id @default(cuid())
+  text            String
+  correctOptionId String?
+  lessonId        String
+  lesson          Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  options         QuestionOption[]
+}
+
+model QuestionOption {
+  id         String   @id @default(cuid())
+  text       String
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum LessonType {
+  VIDEO
+  ARTICLE
+  QUIZ
+  ASSIGNMENT
+}

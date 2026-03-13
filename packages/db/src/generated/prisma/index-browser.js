@@ -120,9 +120,95 @@ exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
   Serializable: 'Serializable'
 });
 
+exports.Prisma.CourseScalarFieldEnum = {
+  id: 'id',
+  title: 'title',
+  description: 'description',
+  status: 'status',
+  instructor: 'instructor',
+  duration: 'duration',
+  students: 'students',
+  category: 'category',
+  level: 'level',
+  price: 'price',
+  tags: 'tags',
+  thumbnail: 'thumbnail',
+  learningOutcomes: 'learningOutcomes',
+  scheduledAt: 'scheduledAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ModuleScalarFieldEnum = {
+  id: 'id',
+  title: 'title',
+  order: 'order',
+  courseId: 'courseId'
+};
+
+exports.Prisma.LessonScalarFieldEnum = {
+  id: 'id',
+  title: 'title',
+  type: 'type',
+  order: 'order',
+  duration: 'duration',
+  description: 'description',
+  videoUrl: 'videoUrl',
+  articleContent: 'articleContent',
+  resources: 'resources',
+  numQuestions: 'numQuestions',
+  passingScore: 'passingScore',
+  assignmentBrief: 'assignmentBrief',
+  maxScore: 'maxScore',
+  daysToComplete: 'daysToComplete',
+  moduleId: 'moduleId'
+};
+
+exports.Prisma.QuestionScalarFieldEnum = {
+  id: 'id',
+  text: 'text',
+  correctOptionId: 'correctOptionId',
+  lessonId: 'lessonId'
+};
+
+exports.Prisma.QuestionOptionScalarFieldEnum = {
+  id: 'id',
+  text: 'text',
+  questionId: 'questionId'
+};
+
+exports.Prisma.SortOrder = {
+  asc: 'asc',
+  desc: 'desc'
+};
+
+exports.Prisma.QueryMode = {
+  default: 'default',
+  insensitive: 'insensitive'
+};
+
+exports.Prisma.NullsOrder = {
+  first: 'first',
+  last: 'last'
+};
+exports.CourseStatus = exports.$Enums.CourseStatus = {
+  DRAFT: 'DRAFT',
+  PUBLISHED: 'PUBLISHED'
+};
+
+exports.LessonType = exports.$Enums.LessonType = {
+  VIDEO: 'VIDEO',
+  ARTICLE: 'ARTICLE',
+  QUIZ: 'QUIZ',
+  ASSIGNMENT: 'ASSIGNMENT'
+};
 
 exports.Prisma.ModelName = {
-
+  Course: 'Course',
+  Module: 'Module',
+  Lesson: 'Lesson',
+  Question: 'Question',
+  QuestionOption: 'QuestionOption'
 };
 
 /**
