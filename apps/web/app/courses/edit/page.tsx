@@ -42,6 +42,8 @@ import { LessonIcon, lessonTypeLabel } from "@/components/lesson-icon"
 import { NativeSelect } from "@/components/native-select"
 import { RadioItem } from "@/components/radio-item"
 import { Sheet } from "@/components/sheet"
+import useSWR from "swr"
+
 import {
   type Course,
   type Lesson,
@@ -50,7 +52,6 @@ import {
   type PublishForm,
   type Question,
   coursesStore,
-  useCourses,
 } from "../store"
 import { collectErrors, courseDetailsSchema, lessonSchema, publishSchema } from "../schemas"
 
@@ -1278,14 +1279,23 @@ function EditPageContent() {
   const searchParams = useSearchParams()
   const id = searchParams.get("id") ?? ""
 
-  // Subscribe to store so course updates re-render the page
-  const courses = useCourses()
-  const course = courses.find((c) => c.id === id)
+  const { data: course, isLoading } = useSWR<Course>(
+    id ? `/api/courses/${id}` : null,
+    (url: string) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(r)))
+  )
 
   const [view, setView] = useState<"editor" | "preview">("editor")
   const [publishForm, setPublishForm] = useState<PublishForm | null>(null)
   const [publishErrors, setPublishErrors] = useState<Record<string, string>>({})
   const [courseErrors, setCourseErrors] = useState<Record<string, string>>({})
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    )
+  }
 
   if (!course) {
     return (
