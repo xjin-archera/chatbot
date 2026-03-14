@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { prisma } from "@workspace/db"
+import { prisma, Prisma } from "@workspace/db"
 
 // ---- helpers ----
 
@@ -14,6 +14,22 @@ function toDbStatus(status: string): "PUBLISHED" | "DRAFT" {
 
 function toDbLessonType(type: string): "VIDEO" | "ARTICLE" | "QUIZ" | "ASSIGNMENT" {
   return type.toUpperCase() as "VIDEO" | "ARTICLE" | "QUIZ" | "ASSIGNMENT"
+}
+
+type CourseWithIncludes = Prisma.CourseGetPayload<{ include: typeof fullInclude }>
+
+function mapCourse(course: CourseWithIncludes) {
+  return {
+    ...course,
+    status: mapStatus(course.status),
+    modules: course.modules.map((m) => ({
+      ...m,
+      lessons: m.lessons.map((l) => ({
+        ...l,
+        type: l.type.toLowerCase() as "video" | "article" | "quiz" | "assignment",
+      })),
+    })),
+  }
 }
 
 const fullInclude = {
@@ -59,10 +75,10 @@ const courseUpdateSchema = z.object({
   category: z.string().optional(),
   level: z.string().optional(),
   status: z.enum(["published", "draft"]).optional(),
-  price: z.string().optional(),
-  tags: z.string().optional(),
-  thumbnail: z.string().optional(),
-  learningOutcomes: z.string().optional(),
+  price: z.string().nullable().optional(),
+  tags: z.string().nullable().optional(),
+  thumbnail: z.string().nullable().optional(),
+  learningOutcomes: z.string().nullable().optional(),
   modules: z.array(moduleSchema).optional(),
 })
 
@@ -77,7 +93,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     if (!course) {
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
-    return NextResponse.json({ ...course, status: mapStatus(course.status) })
+    return NextResponse.json(mapCourse(course))
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
@@ -150,7 +166,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     })
 
     const updated = await prisma.course.findUnique({ where: { id }, include: fullInclude })
-    return NextResponse.json({ ...updated!, status: mapStatus(updated!.status) })
+    return NextResponse.json(mapCourse(updated!))
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

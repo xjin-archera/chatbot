@@ -1,5 +1,6 @@
 "use client"
 
+import { zodResolver } from "@hookform/resolvers/zod"
 import {
   ArrowLeftIcon,
   BookOpenIcon,
@@ -33,13 +34,11 @@ import { Separator } from "@workspace/ui/components/separator"
 import { Switch } from "@workspace/ui/components/switch"
 import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { Textarea } from "@workspace/ui/components/textarea"
-import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
-import useSWR from "swr"
+import useSWR, { useSWRConfig } from "swr"
 import useSWRMutation from "swr/mutation"
-import { useSWRConfig } from "swr"
 
 import { DropZone } from "@/components/dropzone"
 import { Field } from "@/components/field"
@@ -48,6 +47,7 @@ import { NativeSelect } from "@/components/native-select"
 import { RadioItem } from "@/components/radio-item"
 import { Sheet } from "@/components/sheet"
 
+import { courseDetailsSchema, lessonSchema, publishSchema } from "../schemas"
 import {
   type Course,
   type Lesson,
@@ -57,7 +57,6 @@ import {
   coursesStore,
   useCourses,
 } from "../store"
-import { courseDetailsSchema, lessonSchema, publishSchema } from "../schemas"
 
 // ============ EDITABLE MODULE TITLE ============
 
@@ -106,7 +105,7 @@ function EditableModuleTitle({
       }}
     >
       {title}
-      <PencilSimpleIcon className="size-3 opacity-0 group-hover:opacity-100 text-muted-foreground transition-opacity" />
+      <PencilSimpleIcon className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
     </button>
   )
 }
@@ -171,7 +170,10 @@ function LessonEditorSheet({
   }
 
   function removeQuestionAt(qi: number) {
-    setValue("questions", questions.filter((_, i) => i !== qi))
+    setValue(
+      "questions",
+      questions.filter((_, i) => i !== qi)
+    )
   }
 
   function updateQuestionField(
@@ -196,17 +198,19 @@ function LessonEditorSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title="Edit Lesson">
-      <form onSubmit={handleSubmit((data) => onSave(data as Lesson))} className="flex flex-col gap-4">
+      <form
+        onSubmit={handleSubmit((data) => onSave(data as Lesson))}
+        className="flex flex-col gap-4"
+      >
         {/* Hidden id field so the lesson id is included in submitted data */}
         <input type="hidden" {...register("id")} />
 
         <Field label="Title" required>
-          <Input
-            {...register("title")}
-            placeholder="Lesson title..."
-          />
+          <Input {...register("title")} placeholder="Lesson title..." />
           {errors.title && (
-            <p className="text-xs text-destructive mt-0.5">{errors.title.message}</p>
+            <p className="mt-0.5 text-xs text-destructive">
+              {errors.title.message}
+            </p>
           )}
         </Field>
 
@@ -220,10 +224,7 @@ function LessonEditorSheet({
             </NativeSelect>
           </Field>
           <Field label="Duration">
-            <Input
-              {...register("duration")}
-              placeholder="e.g. 12:30"
-            />
+            <Input {...register("duration")} placeholder="e.g. 12:30" />
           </Field>
         </div>
 
@@ -241,12 +242,11 @@ function LessonEditorSheet({
         {type === "video" && (
           <div className="flex flex-col gap-3">
             <Field label="Video URL" required>
-              <Input
-                {...register("videoUrl")}
-                placeholder="https://..."
-              />
+              <Input {...register("videoUrl")} placeholder="https://..." />
               {errors.videoUrl && (
-                <p className="text-xs text-destructive mt-0.5">{errors.videoUrl.message}</p>
+                <p className="mt-0.5 text-xs text-destructive">
+                  {errors.videoUrl.message}
+                </p>
               )}
             </Field>
             <DropZone
@@ -290,14 +290,16 @@ function LessonEditorSheet({
                   {...register("passingScore", { valueAsNumber: true })}
                 />
                 {errors.passingScore && (
-                  <p className="text-xs text-destructive mt-0.5">{errors.passingScore.message}</p>
+                  <p className="mt-0.5 text-xs text-destructive">
+                    {errors.passingScore.message}
+                  </p>
                 )}
               </Field>
 
               {questions.map((q, qi) => (
                 <div
                   key={q.id}
-                  className="rounded-md border border-border p-3 flex flex-col gap-2"
+                  className="flex flex-col gap-2 rounded-md border border-border p-3"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-muted-foreground">
@@ -320,7 +322,7 @@ function LessonEditorSheet({
                       updateQuestionField(qi, "text", e.target.value)
                     }
                   />
-                  <div className="flex flex-col gap-1.5 mt-1">
+                  <div className="mt-1 flex flex-col gap-1.5">
                     {q.options.map((opt) => (
                       <div key={opt.id} className="flex items-center gap-2">
                         <input
@@ -332,7 +334,7 @@ function LessonEditorSheet({
                           }
                           className="accent-primary"
                         />
-                        <span className="text-xs font-medium text-muted-foreground uppercase w-4">
+                        <span className="w-4 text-xs font-medium text-muted-foreground uppercase">
                           {opt.id}
                         </span>
                         <Input
@@ -361,7 +363,9 @@ function LessonEditorSheet({
                   Add Question
                 </Button>
                 {errors.numQuestions && (
-                  <p className="text-xs text-destructive">{errors.numQuestions.message}</p>
+                  <p className="text-xs text-destructive">
+                    {errors.numQuestions.message}
+                  </p>
                 )}
               </div>
             </CardContent>
@@ -385,7 +389,9 @@ function LessonEditorSheet({
                   {...register("maxScore", { valueAsNumber: true })}
                 />
                 {errors.maxScore && (
-                  <p className="text-xs text-destructive mt-0.5">{errors.maxScore.message}</p>
+                  <p className="mt-0.5 text-xs text-destructive">
+                    {errors.maxScore.message}
+                  </p>
                 )}
               </Field>
               <Field label="Days to Complete" required>
@@ -395,7 +401,9 @@ function LessonEditorSheet({
                   {...register("daysToComplete", { valueAsNumber: true })}
                 />
                 {errors.daysToComplete && (
-                  <p className="text-xs text-destructive mt-0.5">{errors.daysToComplete.message}</p>
+                  <p className="mt-0.5 text-xs text-destructive">
+                    {errors.daysToComplete.message}
+                  </p>
                 )}
               </Field>
             </div>
@@ -467,7 +475,7 @@ function CourseEditor({
   course: Course
   onBack: () => void
   onPreview: () => void
-  onPublish: () => void
+  onPublish: (course: Course) => void
 }) {
   const {
     register,
@@ -526,7 +534,9 @@ function CourseEditor({
   )
 
   const [tab, setTab] = useState("details")
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle")
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">(
+    "idle"
+  )
   const [modules, setModules] = useState<Module[]>(course.modules)
   const [lessonSheet, setLessonSheet] = useState<{
     open: boolean
@@ -562,7 +572,7 @@ function CourseEditor({
     handleSubmit(() => {
       const updated = buildCourse()
       coursesStore.upsert(updated)
-      onPublish()
+      onPublish(updated)
     })()
   }
 
@@ -662,7 +672,13 @@ function CourseEditor({
           {saveStatus === "error" && (
             <span className="text-xs text-destructive">Failed to save</span>
           )}
-          <Button variant="outline" size="sm" type="button" onClick={save} disabled={isSaving}>
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={save}
+            disabled={isSaving}
+          >
             {isSaving ? "Saving…" : "Save Draft"}
           </Button>
           <Button variant="outline" size="sm" type="button" onClick={onPreview}>
@@ -710,12 +726,15 @@ function CourseEditor({
                   <img
                     src={thumbnail}
                     alt="Thumbnail preview"
-                    className="h-36 w-full rounded object-cover border border-border"
+                    className="h-36 w-full rounded border border-border object-cover"
                   />
                 )}
                 <DropZone
                   label="Click or drag to upload thumbnail"
-                  accept={{ "image/png": [".png"], "image/jpeg": [".jpg", ".jpeg"] }}
+                  accept={{
+                    "image/png": [".png"],
+                    "image/jpeg": [".jpg", ".jpeg"],
+                  }}
                   maxSize={2 * 1024 * 1024}
                   className="h-36"
                   onFiles={(files) => {
@@ -731,7 +750,9 @@ function CourseEditor({
                   placeholder="Enter course title..."
                 />
                 {errors.title && (
-                  <p className="text-xs text-destructive mt-0.5">{errors.title.message}</p>
+                  <p className="mt-0.5 text-xs text-destructive">
+                    {errors.title.message}
+                  </p>
                 )}
               </Field>
 
@@ -742,7 +763,9 @@ function CourseEditor({
                   className="min-h-24"
                 />
                 {errors.description && (
-                  <p className="text-xs text-destructive mt-0.5">{errors.description.message}</p>
+                  <p className="mt-0.5 text-xs text-destructive">
+                    {errors.description.message}
+                  </p>
                 )}
               </Field>
 
@@ -773,7 +796,9 @@ function CourseEditor({
                   placeholder="Instructor name..."
                 />
                 {errors.instructor && (
-                  <p className="text-xs text-destructive mt-0.5">{errors.instructor.message}</p>
+                  <p className="mt-0.5 text-xs text-destructive">
+                    {errors.instructor.message}
+                  </p>
                 )}
               </Field>
             </div>
@@ -781,12 +806,11 @@ function CourseEditor({
             {/* Sidebar */}
             <div className="col-span-1 flex flex-col gap-4 pt-8">
               <Field label="Price (USD)">
-                <Input
-                  {...register("price")}
-                  placeholder="e.g. 49"
-                />
+                <Input {...register("price")} placeholder="e.g. 49" />
                 {errors.price && (
-                  <p className="text-xs text-destructive mt-0.5">{errors.price.message}</p>
+                  <p className="mt-0.5 text-xs text-destructive">
+                    {errors.price.message}
+                  </p>
                 )}
               </Field>
 
@@ -899,7 +923,7 @@ function CourseEditor({
                             {lesson.duration}
                           </span>
                         )}
-                        <PencilSimpleIcon className="size-3 shrink-0 opacity-0 text-muted-foreground group-hover:opacity-100 transition-opacity" />
+                        <PencilSimpleIcon className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                       </div>
                     ))}
 
@@ -990,10 +1014,7 @@ function CourseEditor({
                 Meta
               </p>
               <Field label="Course Duration">
-                <Input
-                  {...register("duration")}
-                  placeholder="e.g. 8h 30m"
-                />
+                <Input {...register("duration")} placeholder="e.g. 8h 30m" />
               </Field>
             </div>
 
@@ -1004,7 +1025,7 @@ function CourseEditor({
               <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                 Danger Zone
               </p>
-              <div className="rounded border border-destructive/30 p-4 flex flex-col gap-3">
+              <div className="flex flex-col gap-3 rounded border border-destructive/30 p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-xs font-medium">Archive Course</span>
@@ -1027,7 +1048,7 @@ function CourseEditor({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    className="hover:text-destructive-foreground border-destructive/50 text-destructive hover:bg-destructive"
                   >
                     Delete
                   </Button>
@@ -1063,7 +1084,6 @@ function getYoutubeEmbedUrl(url: string): string | null {
   return match ? `https://www.youtube.com/embed/${match[1]}` : null
 }
 
-
 // ============ COURSE PREVIEW ============
 
 function CoursePreview({
@@ -1073,7 +1093,7 @@ function CoursePreview({
 }: {
   course: Course
   onBack: () => void
-  onPublish: () => void
+  onPublish: (course: Course) => void
 }) {
   const [expandedLessonId, setExpandedLessonId] = useState<string | null>(null)
   const totalLessons = course.modules.reduce(
@@ -1094,7 +1114,7 @@ function CoursePreview({
             Preview Mode
           </Badge>
         </div>
-        <Button size="sm" onClick={onPublish}>
+        <Button size="sm" onClick={() => onPublish(course)}>
           <RocketIcon />
           Publish
         </Button>
@@ -1104,10 +1124,10 @@ function CoursePreview({
       <div className="bg-linear-to-br from-gray-900 via-gray-800 to-gray-900 px-6 py-10">
         <div className="max-w-3xl">
           <div className="mb-3 flex items-center gap-2">
-            <Badge className="bg-white/10 text-white border-white/20">
+            <Badge className="border-white/20 bg-white/10 text-white">
               {course.category}
             </Badge>
-            <Badge className="bg-white/10 text-white border-white/20">
+            <Badge className="border-white/20 bg-white/10 text-white">
               {course.level}
             </Badge>
           </div>
@@ -1132,7 +1152,9 @@ function CoursePreview({
             )}
             <span className="flex items-center gap-1.5">
               Taught by{" "}
-              <span className="font-medium text-white">{course.instructor}</span>
+              <span className="font-medium text-white">
+                {course.instructor}
+              </span>
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -1159,7 +1181,9 @@ function CoursePreview({
       {course.learningOutcomes && course.learningOutcomes.trim() && (
         <div className="border-b border-border px-6 py-8">
           <div className="max-w-3xl">
-            <h2 className="mb-4 text-sm font-semibold">What you&apos;ll learn</h2>
+            <h2 className="mb-4 text-sm font-semibold">
+              What you&apos;ll learn
+            </h2>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {course.learningOutcomes
                 .split("\n")
@@ -1168,7 +1192,9 @@ function CoursePreview({
                 .map((point) => (
                   <div key={point} className="flex items-start gap-2">
                     <CheckCircleIcon className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-                    <span className="text-xs text-muted-foreground">{point}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {point}
+                    </span>
                   </div>
                 ))}
             </div>
@@ -1232,7 +1258,7 @@ function CoursePreview({
                                 return embedUrl ? (
                                   <iframe
                                     src={embedUrl}
-                                    className="w-full rounded aspect-video"
+                                    className="aspect-video w-full rounded"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
                                   />
@@ -1284,7 +1310,7 @@ function CoursePreview({
                                 </div>
                               </div>
                               {lesson.description && (
-                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                <p className="text-sm whitespace-pre-wrap text-muted-foreground">
                                   {lesson.description}
                                 </p>
                               )}
@@ -1398,26 +1424,21 @@ function PublishDialog({
             <div className="px-1 pt-1">
               <Input type="datetime-local" {...register("scheduleDate")} />
               {errors.scheduleDate && (
-                <p className="text-xs text-destructive mt-0.5">
+                <p className="mt-0.5 text-xs text-destructive">
                   {errors.scheduleDate.message}
                 </p>
               )}
             </div>
           )}
           {errors.root && (
-            <p className="text-xs text-destructive mt-0.5">
+            <p className="mt-0.5 text-xs text-destructive">
               {errors.root.message}
             </p>
           )}
         </div>
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onCancel}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
             Cancel
           </Button>
           <Button type="submit" size="sm" disabled={isSubmitting}>
@@ -1441,7 +1462,8 @@ function EditPageContent() {
 
   const { data: apiCourse, isLoading } = useSWR<Course>(
     !isNew && id ? `/api/courses/${id}` : null,
-    (url: string) => fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(r)))
+    (url: string) =>
+      fetch(url).then((r) => (r.ok ? r.json() : Promise.reject(r)))
   )
 
   const storeCourses = useCourses()
@@ -1478,32 +1500,38 @@ function EditPageContent() {
         }),
       })
       if (!res.ok) throw new Error("Failed to publish course")
-      const saved = (await res.json()) as Course
-      if (arg.mode === "schedule" && arg.scheduleDate) {
-        const pRes = await fetch(`/api/courses/${saved.id}/publish`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode: "schedule",
-            scheduleDate: arg.scheduleDate,
-          }),
-        })
-        if (!pRes.ok) throw new Error("Failed to schedule course")
-      }
-      return saved
+      return (await res.json()) as Course
     }
   )
 
   const { trigger: publishExisting } = useSWRMutation(
-    id && !isNew ? `/api/courses/${id}/publish` : null,
+    id && !isNew ? `/api/courses/${id}` : null,
     async (
       url,
-      { arg }: { arg: { mode: string; scheduleDate?: string } }
+      { arg }: { arg: { mode: string; scheduleDate?: string; course: Course } }
     ) => {
+      console.log(url)
       const res = await fetch(url, {
-        method: "POST",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(arg),
+        body: JSON.stringify({
+          title: arg.course.title,
+          description: arg.course.description,
+          instructor: arg.course.instructor,
+          duration: arg.course.duration,
+          students: arg.course.students,
+          category: arg.course.category,
+          level: arg.course.level,
+          price: arg.course.price,
+          tags: arg.course.tags,
+          thumbnail: arg.course.thumbnail,
+          learningOutcomes: arg.course.learningOutcomes,
+          status: arg.mode === "immediate" ? "published" : "draft",
+          modules: arg.course.modules.map((m) => ({
+            title: m.title,
+            lessons: m.lessons.map((l) => ({ ...l })),
+          })),
+        }),
       })
       if (!res.ok) throw new Error("Failed to publish course")
       return res.json() as Promise<Course>
@@ -1512,6 +1540,7 @@ function EditPageContent() {
 
   const [view, setView] = useState<"editor" | "preview">("editor")
   const [publishDialogOpen, setPublishDialogOpen] = useState(false)
+  const [courseToPublish, setCourseToPublish] = useState<Course | null>(null)
 
   if (isLoading) {
     return (
@@ -1537,17 +1566,27 @@ function EditPageContent() {
     )
   }
 
-  function openPublishDialog() {
+  function openPublishDialog(updated: Course) {
+    setCourseToPublish(updated)
     setPublishDialogOpen(true)
   }
 
   async function handleSubmitPublish(data: PublishForm) {
-    if (!course) return
+    const target = courseToPublish ?? course
+    if (!target) return
     if (isNew) {
-      await publishNew({ mode: data.mode, scheduleDate: data.scheduleDate, course })
+      await publishNew({
+        mode: data.mode,
+        scheduleDate: data.scheduleDate,
+        course: target,
+      })
       coursesStore.delete(id)
     } else {
-      await publishExisting({ mode: data.mode, scheduleDate: data.scheduleDate })
+      await publishExisting({
+        mode: data.mode,
+        scheduleDate: data.scheduleDate,
+        course: target,
+      })
     }
     await mutate("/api/courses")
     setPublishDialogOpen(false)
