@@ -1,0 +1,189 @@
+import { NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
+import { prisma, Prisma } from "@workspace/db"
+
+// ---- helpers ----
+
+function mapStatus(status: string): "published" | "draft" {
+  return status === "PUBLISHED" ? "published" : "draft"
+}
+
+function toDbStatus(status: string): "PUBLISHED" | "DRAFT" {
+  return status === "published" ? "PUBLISHED" : "DRAFT"
+}
+
+function toDbLessonType(type: string): "VIDEO" | "ARTICLE" | "QUIZ" | "ASSIGNMENT" {
+  return type.toUpperCase() as "VIDEO" | "ARTICLE" | "QUIZ" | "ASSIGNMENT"
+}
+
+type CourseWithIncludes = Prisma.CourseGetPayload<{ include: typeof fullInclude }>
+
+function mapCourse(course: CourseWithIncludes) {
+  return {
+    ...course,
+    status: mapStatus(course.status),
+    modules: course.modules.map((m) => ({
+      ...m,
+      lessons: m.lessons.map((l) => ({
+        ...l,
+        type: l.type.toLowerCase() as "video" | "article" | "quiz" | "assignment",
+      })),
+    })),
+  }
+}
+
+const fullInclude = {
+  modules: {
+    orderBy: { order: "asc" as const },
+    include: {
+      lessons: {
+        orderBy: { order: "asc" as const },
+        include: { questions: { include: { options: true } } },
+      },
+    },
+  },
+}
+
+// ---- schemas ----
+
+const lessonSchema = z.object({
+  title: z.string().min(1),
+  type: z.enum(["video", "article", "quiz", "assignment"]),
+  duration: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  videoUrl: z.string().nullable().optional(),
+  articleContent: z.string().nullable().optional(),
+  resources: z.string().nullable().optional(),
+  numQuestions: z.number().nullable().optional(),
+  passingScore: z.number().nullable().optional(),
+  assignmentBrief: z.string().nullable().optional(),
+  maxScore: z.number().nullable().optional(),
+  daysToComplete: z.number().nullable().optional(),
+})
+
+const moduleSchema = z.object({
+  title: z.string().min(1),
+  lessons: z.array(lessonSchema).default([]),
+})
+
+const courseUpdateSchema = z.object({
+  title: z.string().min(3).optional(),
+  description: z.string().min(10).optional(),
+  instructor: z.string().min(1).optional(),
+  duration: z.string().optional(),
+  students: z.number().optional(),
+  category: z.string().optional(),
+  level: z.string().optional(),
+  status: z.enum(["published", "draft"]).optional(),
+  price: z.string().nullable().optional(),
+  tags: z.string().nullable().optional(),
+  thumbnail: z.string().nullable().optional(),
+  learningOutcomes: z.string().nullable().optional(),
+  modules: z.array(moduleSchema).optional(),
+})
+
+type Params = { params: Promise<{ id: string }> }
+
+// ---- GET /api/courses/[id] ----
+
+export async function GET(_req: NextRequest, { params }: Params) {
+  try {
+    const { id } = await params
+    const course = await prisma.course.findUnique({ where: { id }, include: fullInclude })
+    if (!course) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
+    }
+    return NextResponse.json(mapCourse(course))
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+// ---- PUT /api/courses/[id] ----
+
+export async function PUT(req: NextRequest, { params }: Params) {
+  try {
+    const { id } = await params
+    const body = await req.json()
+    const parsed = courseUpdateSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Validation failed", details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      )
+    }
+
+    const exists = await prisma.course.findUnique({ where: { id }, select: { id: true } })
+    if (!exists) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
+    }
+
+    const { modules, status, ...scalarFields } = parsed.data
+
+    await prisma.$transaction(async (tx) => {
+      if (modules !== undefined) {
+        // delete-and-recreate strategy (cascade removes lessons/questions/options)
+        await tx.module.deleteMany({ where: { courseId: id } })
+        await tx.course.update({
+          where: { id },
+          data: {
+            ...(status ? { status: toDbStatus(status) } : {}),
+            ...scalarFields,
+            modules: {
+              create: modules.map((mod, mIdx) => ({
+                title: mod.title,
+                order: mIdx,
+                lessons: {
+                  create: mod.lessons.map((les, lIdx) => ({
+                    title: les.title,
+                    type: toDbLessonType(les.type),
+                    order: lIdx,
+                    duration: les.duration,
+                    description: les.description,
+                    videoUrl: les.videoUrl,
+                    articleContent: les.articleContent,
+                    resources: les.resources,
+                    numQuestions: les.numQuestions,
+                    passingScore: les.passingScore,
+                    assignmentBrief: les.assignmentBrief,
+                    maxScore: les.maxScore,
+                    daysToComplete: les.daysToComplete,
+                  })),
+                },
+              })),
+            },
+          },
+        })
+      } else {
+        await tx.course.update({
+          where: { id },
+          data: {
+            ...(status ? { status: toDbStatus(status) } : {}),
+            ...scalarFields,
+          },
+        })
+      }
+    })
+
+    const updated = await prisma.course.findUnique({ where: { id }, include: fullInclude })
+    return NextResponse.json(mapCourse(updated!))
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+// ---- DELETE /api/courses/[id] ----
+
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  try {
+    const { id } = await params
+    const exists = await prisma.course.findUnique({ where: { id }, select: { id: true } })
+    if (!exists) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
+    }
+    await prisma.course.delete({ where: { id } })
+    return new NextResponse(null, { status: 204 })
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
