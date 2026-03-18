@@ -138,8 +138,63 @@ export default function CoursesPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading courses…</p>
+      <div className="flex flex-col gap-6 p-6">
+        {/* Header skeleton */}
+        <div className="flex items-start justify-between">
+          <div className="flex flex-col gap-1.5">
+            <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+            <div className="h-3 w-48 rounded bg-muted animate-pulse" />
+          </div>
+          <div className="h-8 w-28 rounded bg-muted animate-pulse" />
+        </div>
+        {/* Skeleton cards */}
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="rounded-xl border p-5 flex items-center gap-5">
+            <div className="w-20 h-14 rounded-lg bg-muted animate-pulse shrink-0" />
+            <div className="flex flex-1 flex-col gap-2">
+              <div className="h-3.5 w-1/3 rounded bg-muted animate-pulse" />
+              <div className="h-3 w-2/3 rounded bg-muted animate-pulse" />
+              <div className="h-3 w-1/4 rounded bg-muted animate-pulse" />
+            </div>
+            <div className="h-6 w-16 rounded bg-muted animate-pulse shrink-0" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (courses.length === 0) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        {/* Keep header so user can still create */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-base font-semibold">Courses</h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Manage and publish your course content
+            </p>
+          </div>
+          <Button onClick={handleNewCourse} size="sm">
+            <PlusIcon />
+            New Course
+          </Button>
+        </div>
+        {/* Blank state */}
+        <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+            <BookOpenIcon className="size-8 text-muted-foreground/60" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">No courses yet</p>
+            <p className="mt-1 text-xs text-muted-foreground max-w-xs">
+              Create your first course to start building and publishing content for your students.
+            </p>
+          </div>
+          <Button onClick={handleNewCourse} size="sm">
+            <PlusIcon />
+            Create your first course
+          </Button>
+        </div>
       </div>
     )
   }
@@ -191,12 +246,14 @@ export default function CoursesPage() {
 
       {/* Course list */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <BookOpenIcon className="mb-3 size-8 text-muted-foreground" />
-          <p className="text-sm font-medium">No courses found</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Try adjusting your search or filter
-          </p>
+        <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
+          <MagnifyingGlassIcon className="size-8 text-muted-foreground/60" />
+          <div>
+            <p className="text-sm font-medium">No matching courses</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Try adjusting your search or filter to find what you're looking for.
+            </p>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col space-y-3">
