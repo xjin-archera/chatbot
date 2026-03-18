@@ -1,0 +1,6 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "course_builder": "./agent/graph.py:graph"
+  }
+}
