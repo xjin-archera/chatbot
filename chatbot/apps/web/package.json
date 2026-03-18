@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@langchain/core": "^1.1.33",
     "@langchain/langgraph-sdk": "^1.7.4",
     "@phosphor-icons/react": "^2.1.10",
     "@workspace/db": "workspace:*",
