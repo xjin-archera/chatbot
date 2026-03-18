@@ -3,5 +3,5 @@
   "graphs": {
     "course_builder": "./agent/graph.py:graph"
   },
-  "env": "./agent/.env"
+  "env": ".env"
 }

@@ -6,7 +6,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.types import Command, interrupt
 
-from agent.state import DEFAULT_GUIDE_STEPS, CourseBuilderState
+from agent.state import DEFAULT_GUIDE_STEPS, CourseBuilderInput, CourseBuilderState
 from agent.tools import (
     add_lesson,
     add_module,
@@ -105,6 +105,7 @@ def should_continue(state: CourseBuilderState) -> str:
 
 def confirm(state: CourseBuilderState) -> Command:
     last = state["messages"][-1]
+    assert isinstance(last, AIMessage)
     mutation_calls = [tc for tc in last.tool_calls if tc["name"] in MUTATION_TOOLS]
 
     payload = {
@@ -156,7 +157,7 @@ async def execute(state: CourseBuilderState) -> dict:
 
 tool_executor = ToolNode(read_tools)
 
-builder = StateGraph(CourseBuilderState)
+builder = StateGraph(CourseBuilderState, input_schema=CourseBuilderInput)
 
 builder.add_node("guide", guide)
 builder.add_node("agent", agent)

@@ -1,6 +1,6 @@
-from typing import Annotated, Literal, TypedDict
+from typing import Literal, TypedDict
 
-from langgraph.graph import add_messages
+from langgraph.graph import MessagesState
 
 
 class GuideStep(TypedDict):
@@ -44,9 +44,12 @@ DEFAULT_GUIDE_STEPS: list[GuideStep] = [
 ]
 
 
-class CourseBuilderState(TypedDict):
-    messages: Annotated[list, add_messages]
+class CourseBuilderState(MessagesState):
     guide_steps: list[GuideStep]
     current_step_id: str
     course_id: str | None
+    page_context: dict
+
+
+class CourseBuilderInput(MessagesState):
     page_context: dict
