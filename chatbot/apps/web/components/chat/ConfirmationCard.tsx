@@ -32,6 +32,25 @@ function humanize(str: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+function flattenArgs(
+  args: Record<string, unknown>,
+  prefix = ""
+): Array<[string, string]> {
+  const result: Array<[string, string]> = []
+  for (const [key, value] of Object.entries(args)) {
+    if (value == null) continue
+    const fullKey = prefix ? `${prefix}_${key}` : key
+    if (typeof value === "object" && !Array.isArray(value)) {
+      result.push(...flattenArgs(value as Record<string, unknown>, fullKey))
+    } else if (Array.isArray(value)) {
+      result.push([fullKey, value.map((v) => (typeof v === "object" ? JSON.stringify(v) : String(v))).join(", ")])
+    } else {
+      result.push([fullKey, String(value)])
+    }
+  }
+  return result
+}
+
 function parseActions(interrupt: Interrupt): ProposedAction[] {
   const raw = interrupt.value
   console.log("interrupt.value:", JSON.stringify(raw, null, 2))
@@ -61,11 +80,7 @@ export function ConfirmationCard({ interrupt, onApprove, onReject, onEdit }: Con
   function enterEditMode() {
     const initial: Record<string, Record<string, string>> = {}
     for (const action of actions) {
-      initial[action.tool] = Object.fromEntries(
-        Object.entries(action.args)
-          .filter(([, v]) => v != null)
-          .map(([k, v]) => [k, String(v)])
-      )
+      initial[action.tool] = Object.fromEntries(flattenArgs(action.args))
     }
     setEditedArgs(initial)
     setMode("editing")
@@ -91,26 +106,24 @@ export function ConfirmationCard({ interrupt, onApprove, onReject, onEdit }: Con
               <div key={action.tool} className="flex flex-col gap-3">
                 {i > 0 && <Separator />}
                 <p className="text-xs font-semibold text-muted-foreground">{humanize(action.tool)}</p>
-                {Object.entries(action.args)
-                  .filter(([, v]) => v != null)
-                  .map(([key]) => (
-                    <div key={key} className="flex flex-col gap-1">
-                      <Label className="text-xs">{humanize(key)}</Label>
-                      <Input
-                        className="text-xs"
-                        value={editedArgs[action.tool]?.[key] ?? ""}
-                        onChange={(e) =>
-                          setEditedArgs((prev) => ({
-                            ...prev,
-                            [action.tool]: {
-                              ...prev[action.tool],
-                              [key]: e.target.value,
-                            },
-                          }))
-                        }
-                      />
-                    </div>
-                  ))}
+                {flattenArgs(action.args).map(([key]) => (
+                  <div key={key} className="flex flex-col gap-1">
+                    <Label className="text-xs">{humanize(key)}</Label>
+                    <Input
+                      className="text-xs"
+                      value={editedArgs[action.tool]?.[key] ?? ""}
+                      onChange={(e) =>
+                        setEditedArgs((prev) => ({
+                          ...prev,
+                          [action.tool]: {
+                            ...prev[action.tool],
+                            [key]: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
               </div>
             ))}
           </CardContent>
@@ -146,18 +159,16 @@ export function ConfirmationCard({ interrupt, onApprove, onReject, onEdit }: Con
               {i > 0 && <Separator />}
               <p className="text-xs font-semibold text-muted-foreground">{humanize(action.tool)}</p>
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-                {Object.entries(action.args)
-                  .filter(([, v]) => v != null)
-                  .map(([key, value]) => (
-                    <Fragment key={key}>
-                      <dt className="text-xs font-medium text-muted-foreground">
-                        {humanize(key)}
-                      </dt>
-                      <dd className="text-xs">
-                        {String(value)}
-                      </dd>
-                    </Fragment>
-                  ))}
+                {flattenArgs(action.args).map(([key, value]) => (
+                  <Fragment key={key}>
+                    <dt className="text-xs font-medium text-muted-foreground">
+                      {humanize(key)}
+                    </dt>
+                    <dd className="text-xs break-all">
+                      {value}
+                    </dd>
+                  </Fragment>
+                ))}
               </dl>
             </div>
           ))}
