@@ -1,6 +1,10 @@
 "use client"
 
-import { CaretDownIcon, CheckCircleIcon, CircleIcon } from "@phosphor-icons/react"
+import {
+  CaretDownIcon,
+  CheckCircleIcon,
+  CircleIcon,
+} from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "motion/react"
 import { useState } from "react"
 
@@ -17,7 +21,11 @@ type Props = {
   onStepClick: (stepId: string, stepTitle: string) => void
 }
 
-export function GuideStepper({ guideSteps, currentStepId, onStepClick }: Props) {
+export function GuideStepper({
+  guideSteps,
+  currentStepId,
+  onStepClick,
+}: Props) {
   const [open, setOpen] = useState(true)
 
   if (guideSteps.length === 0) return null
@@ -27,6 +35,7 @@ export function GuideStepper({ guideSteps, currentStepId, onStepClick }: Props) 
   const activeStep = guideSteps.find(
     (s) => s.status === "active" || s.id === currentStepId
   )
+  console.log(guideSteps)
 
   return (
     <div>
@@ -36,10 +45,14 @@ export function GuideStepper({ guideSteps, currentStepId, onStepClick }: Props) 
         className="flex w-full items-center justify-between px-4 py-2 text-left hover:bg-muted/50"
       >
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-semibold ${allDone ? "text-green-600" : "text-foreground"}`}>
+          <span
+            className={`text-xs font-semibold ${allDone ? "text-green-600" : "text-foreground"}`}
+          >
             {allDone ? "🎉 All steps completed!" : "Guide"}
           </span>
-          <span className={`text-xs ${allDone ? "text-green-500" : "text-muted-foreground"}`}>
+          <span
+            className={`text-xs ${allDone ? "text-green-500" : "text-muted-foreground"}`}
+          >
             {doneCount}/{guideSteps.length}
           </span>
           {!open && !allDone && activeStep && (
@@ -68,7 +81,7 @@ export function GuideStepper({ guideSteps, currentStepId, onStepClick }: Props) 
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="flex max-h-44 flex-col overflow-y-auto px-4 pb-3 pt-1">
+            <div className="flex max-h-44 flex-col overflow-y-auto px-4 pt-1 pb-3">
               {guideSteps.map((step, index) => {
                 const isDone = step.status === "completed"
                 const isActive =
@@ -85,8 +98,16 @@ export function GuideStepper({ guideSteps, currentStepId, onStepClick }: Props) 
                         ? "cursor-pointer"
                         : "cursor-not-allowed opacity-60"
                     }`}
-                    whileHover={clickable ? { backgroundColor: "hsl(var(--muted) / 0.6)" } : {}}
-                    onClick={clickable ? () => onStepClick(step.id, step.title) : undefined}
+                    whileHover={
+                      clickable
+                        ? { backgroundColor: "hsl(var(--muted) / 0.6)" }
+                        : {}
+                    }
+                    onClick={
+                      clickable
+                        ? () => onStepClick(step.id, step.title)
+                        : undefined
+                    }
                   >
                     {/* Spine */}
                     <div className="flex flex-col items-center">
@@ -116,7 +137,7 @@ export function GuideStepper({ guideSteps, currentStepId, onStepClick }: Props) 
                     {/* Content */}
                     <div className="pb-3">
                       <p
-                        className={`text-xs font-medium leading-4 ${
+                        className={`text-xs leading-4 font-medium ${
                           isDone
                             ? "text-muted-foreground line-through"
                             : isActive

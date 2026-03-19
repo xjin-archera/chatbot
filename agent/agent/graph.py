@@ -10,6 +10,7 @@ from agent.state import DEFAULT_GUIDE_STEPS, CourseBuilderInput, CourseBuilderSt
 from agent.tools import (
     add_lesson,
     add_module,
+    complete_step,
     course_preview,
     create_course,
     get_course,
@@ -20,11 +21,13 @@ from agent.tools import (
     update_course,
 )
 
-MUTATION_TOOLS = ["create_course", "update_course", "add_module", "add_lesson", "publish_course", "reset_guide"]
+MUTATION_TOOLS = ["create_course", "update_course", "add_module", "add_lesson", "publish_course", "reset_guide", "complete_step"]
+# Tools that go through the mutation path but bypass the confirmation dialog
+SILENT_MUTATION_TOOLS = {"complete_step", "reset_guide"}
 READ_TOOLS = ["get_courses", "get_course", "suggest_options", "course_preview"]
 
 read_tools = [get_courses, get_course, suggest_options, course_preview]
-mutation_tools = [create_course, update_course, add_module, add_lesson, publish_course, reset_guide]
+mutation_tools = [create_course, update_course, add_module, add_lesson, publish_course, reset_guide, complete_step]
 all_tools = read_tools + mutation_tools
 
 tool_map = {t.name: t for t in all_tools}
@@ -53,8 +56,14 @@ def guide(state: CourseBuilderState) -> dict:
     if not state.get("step_completed"):
         return {}
 
-    # Activate next pending step (execute already marked the current step completed)
+    # Mark current step completed, activate next
     steps = copy.deepcopy(guide_steps)
+    current_step_id = state.get("current_step_id", "")
+
+    for step in steps:
+        if step["id"] == current_step_id:
+            step["status"] = "completed"
+            break
 
     next_step = next((s for s in steps if s["status"] == "pending"), None)
     if next_step:
@@ -121,6 +130,11 @@ When you have enough information to take action, call the appropriate tool \
 (create_course, update_course, add_module, add_lesson, publish_course) with the proposed data. \
 Your mutation tool calls will be shown to the user for confirmation before being executed.
 
+IMPORTANT: If the active step is already done (e.g. the description was included in create_course, \
+so add_description is still "active" but the course already has a description), call complete_step \
+immediately to advance the guide — do NOT ask the user to redo the step. This runs silently with no \
+confirmation dialog.
+
 When asking the user for input on a step, ALWAYS call the suggest_options tool alongside your text response with 3-5 relevant suggestions. For example:
 - When asking for a course title: suggest 3-4 course name ideas based on the topic
 - When asking for a category: suggest relevant categories (e.g. Programming, Design, Business, Marketing)
@@ -161,6 +175,10 @@ def confirm(state: CourseBuilderState) -> Command:
     last = state["messages"][-1]
     assert isinstance(last, AIMessage)
     mutation_calls = [tc for tc in last.tool_calls if tc["name"] in MUTATION_TOOLS]
+
+    # Silent tools (complete_step, reset_guide) bypass the confirmation dialog
+    if all(tc["name"] in SILENT_MUTATION_TOOLS for tc in mutation_calls):
+        return Command(goto="execute")
 
     payload = {
         "type": "confirmation",
@@ -211,6 +229,12 @@ async def execute(state: CourseBuilderState) -> dict:
         if tc["name"] not in MUTATION_TOOLS:
             continue
 
+        if tc["name"] == "complete_step":
+            return {
+                "messages": [ToolMessage(content="Step marked complete.", tool_call_id=tc["id"])],
+                "step_completed": True,
+            }
+
         if tc["name"] == "reset_guide":
             return {
                 "messages": [ToolMessage(content="Guide reset. Starting fresh!", tool_call_id=tc["id"])],
@@ -224,20 +248,10 @@ async def execute(state: CourseBuilderState) -> dict:
         if tc["name"] == "create_course" and isinstance(result, dict) and result.get("id"):
             course_id_update = {"course_id": result["id"]}
 
-    # Mark the current guide step as completed directly in execute so the
-    # values event is emitted immediately, before guide→agent run.
-    guide_steps = copy.deepcopy(state.get("guide_steps") or [])
-    current_step_id = state.get("current_step_id", "")
-    for step in guide_steps:
-        if step["id"] == current_step_id:
-            step["status"] = "completed"
-            break
-
     return {
         "messages": tool_results,
         "step_completed": True,
         "edited_args": None,
-        "guide_steps": guide_steps,
         **course_id_update,
     }
 

@@ -156,6 +156,18 @@ def course_preview(spec: dict) -> str:
 
 
 @tool
+def complete_step() -> str:
+    """Mark the current guide step as complete without making an API call.
+
+    Use this when you detect a step is already done — for example, when the
+    course description was included in create_course so the add_description
+    step never had its own execution. Calling this advances the guide to the
+    next step without showing a confirmation dialog.
+    """
+    return "Step marked complete"
+
+
+@tool
 def reset_guide() -> str:
     """Reset the course builder guide to start creating a new course.
     Call this when the user wants to create another course after completing all steps."""
