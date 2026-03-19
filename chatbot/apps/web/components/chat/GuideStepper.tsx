@@ -8,7 +8,7 @@ type GuideStep = {
   id: string
   title: string
   description: string
-  status: "pending" | "in_progress" | "done"
+  status: "pending" | "active" | "completed"
 }
 
 type Props = {
@@ -22,9 +22,9 @@ export function GuideStepper({ guideSteps, currentStepId, onStepClick }: Props) 
 
   if (guideSteps.length === 0) return null
 
-  const doneCount = guideSteps.filter((s) => s.status === "done").length
+  const doneCount = guideSteps.filter((s) => s.status === "completed").length
   const activeStep = guideSteps.find(
-    (s) => s.status === "in_progress" || s.id === currentStepId
+    (s) => s.status === "active" || s.id === currentStepId
   )
 
   return (
@@ -67,9 +67,9 @@ export function GuideStepper({ guideSteps, currentStepId, onStepClick }: Props) 
           >
             <div className="flex max-h-44 flex-col overflow-y-auto px-4 pb-3 pt-1">
               {guideSteps.map((step, index) => {
-                const isDone = step.status === "done"
+                const isDone = step.status === "completed"
                 const isActive =
-                  step.status === "in_progress" || step.id === currentStepId
+                  step.status === "active" || step.id === currentStepId
 
                 const clickable = isDone || isActive
 

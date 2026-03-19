@@ -8,7 +8,7 @@ type GuideStep = {
   id: string
   title: string
   description: string
-  status: "pending" | "in_progress" | "done"
+  status: "pending" | "active" | "completed"
 }
 
 type AgentState = {

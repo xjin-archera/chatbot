@@ -123,10 +123,16 @@ def confirm(state: CourseBuilderState) -> Command:
 
     response = interrupt(payload)
 
-    if response.get("action") == "approve":
+    decision = response.get("action", "reject")
+
+    if decision == "approve":
         return Command(goto="execute")
 
-    # reject or edit: keep LLM history consistent with cancellation ToolMessages, route back to agent
+    if decision == "edit":
+        edited_args = response.get("args", {})
+        return Command(goto="execute", update={"edited_args": edited_args})
+
+    # reject: cancel the tool calls and go back to agent
     cancel_messages = [
         ToolMessage(content="Action cancelled by user.", tool_call_id=tc["id"])
         for tc in mutation_calls
@@ -148,17 +154,20 @@ async def execute(state: CourseBuilderState) -> dict:
     if not last_ai:
         return {}
 
+    edited_args: dict = state.get("edited_args") or {}
+
     tool_results = []
     course_id_update: dict = {}
     for tc in last_ai.tool_calls:
         if tc["name"] not in MUTATION_TOOLS:
             continue
-        result = await tool_map[tc["name"]].ainvoke(tc["args"])
+        args = {**tc["args"], **edited_args} if edited_args else tc["args"]
+        result = await tool_map[tc["name"]].ainvoke(args)
         tool_results.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
         if tc["name"] == "create_course" and isinstance(result, dict) and result.get("id"):
             course_id_update = {"course_id": result["id"]}
 
-    return {"messages": tool_results, "step_completed": True, **course_id_update}
+    return {"messages": tool_results, "step_completed": True, "edited_args": None, **course_id_update}
 
 
 # --- Graph ---

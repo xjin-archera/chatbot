@@ -32,27 +32,29 @@ function humanize(str: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-function parseActions(interruptValue: unknown): ProposedAction[] {
-  console.log("interrupt.value:", interruptValue)
+function parseActions(interrupt: Interrupt): ProposedAction[] {
+  const raw = interrupt.value
+  console.log("interrupt.value:", JSON.stringify(raw, null, 2))
 
-  const raw = Array.isArray(interruptValue) ? interruptValue[0] : interruptValue
-
-  if (raw && typeof raw === "object") {
-    const payload = raw as ConfirmationPayload
-    if (Array.isArray(payload.proposed_actions)) {
-      return payload.proposed_actions
-    }
+  let payload: unknown = raw
+  if (Array.isArray(payload)) {
+    payload = payload[0]
   }
 
-  if (Array.isArray(raw)) {
-    return raw as ProposedAction[]
+  if (payload && typeof payload === "object" && "proposed_actions" in payload) {
+    return (payload as ConfirmationPayload).proposed_actions ?? []
   }
 
+  if (payload && typeof payload === "object" && "tool" in payload) {
+    return [payload as ProposedAction]
+  }
+
+  console.warn("Could not parse interrupt payload:", raw)
   return []
 }
 
 export function ConfirmationCard({ interrupt, onApprove, onReject, onEdit }: ConfirmationCardProps) {
-  const actions = parseActions(interrupt.value)
+  const actions = parseActions(interrupt)
   const [mode, setMode] = useState<"review" | "editing">("review")
   const [editedArgs, setEditedArgs] = useState<Record<string, Record<string, string>>>({})
 
