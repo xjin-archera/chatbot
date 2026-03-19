@@ -137,6 +137,25 @@ def suggest_options(options: list[str], prompt_text: str, field_name: str) -> st
 
 
 @tool
+def course_preview(spec: dict) -> str:
+    """Render a rich course preview card in the chat UI.
+
+    The spec should be a json-render spec with 'root' and 'elements' keys.
+    Available component types:
+    - CoursePreviewCard: props { title, description, instructor, category, level, status }
+    - ModuleSection: props { title, lessonCount } — can have LessonRow children
+    - LessonRow: props { title, type } — type is one of: video, article, quiz, assignment
+    - MetadataRow: props { label, value }
+    - SectionDivider: props {}
+    - Container: props { gap } — gap is sm, md, or lg. Used to group elements vertically.
+
+    Call this tool when the user is about to publish their course, to show them a preview.
+    Build the spec to show: course title/description, instructor, category/level, all modules with their lessons.
+    """
+    return "Preview rendered in UI"
+
+
+@tool
 def reset_guide() -> str:
     """Reset the course builder guide to start creating a new course.
     Call this when the user wants to create another course after completing all steps."""

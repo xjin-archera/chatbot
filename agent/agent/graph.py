@@ -10,6 +10,7 @@ from agent.state import DEFAULT_GUIDE_STEPS, CourseBuilderInput, CourseBuilderSt
 from agent.tools import (
     add_lesson,
     add_module,
+    course_preview,
     create_course,
     get_course,
     get_courses,
@@ -20,9 +21,9 @@ from agent.tools import (
 )
 
 MUTATION_TOOLS = ["create_course", "update_course", "add_module", "add_lesson", "publish_course", "reset_guide"]
-READ_TOOLS = ["get_courses", "get_course", "suggest_options"]
+READ_TOOLS = ["get_courses", "get_course", "suggest_options", "course_preview"]
 
-read_tools = [get_courses, get_course, suggest_options]
+read_tools = [get_courses, get_course, suggest_options, course_preview]
 mutation_tools = [create_course, update_course, add_module, add_lesson, publish_course, reset_guide]
 all_tools = read_tools + mutation_tools
 
@@ -132,7 +133,21 @@ When asking the user for input on a step, ALWAYS call the suggest_options tool a
 - When asking for a module name: suggest module name ideas based on the course topic
 - When asking for a lesson title: suggest lesson title ideas based on the module
 - When asking for lesson type: suggest from available types — video, article, quiz, assignment
-Call suggest_options in the same response as your text message. The user can click a suggestion or type their own answer.{new_course_hint}""")
+Call suggest_options in the same response as your text message. The user can click a suggestion or type their own answer.
+
+When the user reaches the "publish" step, ALWAYS call the course_preview tool first to show them a visual preview of their course before asking to publish. Use get_course to fetch the full course data, then build the spec. Example spec structure:
+{{
+  "root": "preview-container",
+  "elements": {{
+    "preview-container": {{"type": "Container", "props": {{"gap": "md"}}, "children": ["course-card", "divider-1", "modules-container"]}},
+    "course-card": {{"type": "CoursePreviewCard", "props": {{"title": "...", "description": "...", "instructor": "...", "category": "...", "level": "...", "status": "draft"}}, "children": []}},
+    "divider-1": {{"type": "SectionDivider", "props": {{}}, "children": []}},
+    "modules-container": {{"type": "Container", "props": {{"gap": "sm"}}, "children": ["module-1"]}},
+    "module-1": {{"type": "ModuleSection", "props": {{"title": "Getting Started", "lessonCount": 2}}, "children": ["lesson-1", "lesson-2"]}},
+    "lesson-1": {{"type": "LessonRow", "props": {{"title": "What is Python?", "type": "video"}}, "children": []}},
+    "lesson-2": {{"type": "LessonRow", "props": {{"title": "Installing Python", "type": "article"}}, "children": []}}
+  }}
+}}{new_course_hint}""")
 
     messages = [system, *state["messages"]]
     response = await llm_with_tools.ainvoke(messages)
@@ -233,12 +248,15 @@ async def execute(state: CourseBuilderState) -> dict:
     }
 
 
+UI_ONLY_TOOLS = {"suggest_options", "course_preview"}
+
+
 def after_tools(state: CourseBuilderState) -> str:
-    """After tool_executor runs, end the turn if suggest_options was the only tool called."""
+    """After tool_executor runs, end the turn if only UI-only tools were called."""
     for msg in reversed(state["messages"]):
         if isinstance(msg, AIMessage):
             tool_names = [tc["name"] for tc in (msg.tool_calls or [])]
-            if tool_names and all(t == "suggest_options" for t in tool_names):
+            if tool_names and all(t in UI_ONLY_TOOLS for t in tool_names):
                 return "end"
             break
     return "agent"

@@ -2,9 +2,12 @@
 
 import { type Message, type ToolCallWithResult } from "@langchain/langgraph-sdk"
 import { motion } from "motion/react"
+import { CoursePreviewRenderer } from "@/components/chat/generative-ui/CoursePreviewRenderer"
 import { Markdown } from "@/components/chat/Markdown"
 import { SuggestionChips } from "@/components/chat/SuggestionChips"
 import { ToolCallCard } from "@/components/chat/ToolCallCard"
+
+const UI_ONLY_TOOLS = new Set(["suggest_options", "course_preview"])
 
 type AiToolCall = { id: string; name: string; args: Record<string, unknown> }
 
@@ -35,9 +38,14 @@ export function MessageBubble({ msg, toolCalls, onSuggestionSelect, isLatest }: 
       | { options: string[]; prompt_text: string; field_name: string }
       | undefined
 
-    const visibleToolCalls = messageToolCalls.filter((tc) => tc.call.name !== "suggest_options")
+    const previewCall = aiToolCalls.find((tc) => tc.name === "course_preview")
+    const previewSpec = previewCall?.args?.spec as
+      | { root: string; elements: Record<string, unknown> }
+      | undefined
 
-    if (!text.trim() && visibleToolCalls.length === 0 && !suggestions) return null
+    const visibleToolCalls = messageToolCalls.filter((tc) => !UI_ONLY_TOOLS.has(tc.call.name))
+
+    if (!text.trim() && visibleToolCalls.length === 0 && !suggestions && !previewSpec) return null
 
     return (
       <motion.div
@@ -53,6 +61,7 @@ export function MessageBubble({ msg, toolCalls, onSuggestionSelect, isLatest }: 
         {visibleToolCalls.map((tc) => (
           <ToolCallCard key={tc.call.id} toolCall={tc} />
         ))}
+        {previewSpec && <CoursePreviewRenderer spec={previewSpec} />}
         {suggestions && suggestions.options?.length > 0 && (
           <SuggestionChips
             options={suggestions.options}
