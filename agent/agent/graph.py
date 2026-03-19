@@ -215,7 +215,22 @@ async def execute(state: CourseBuilderState) -> dict:
         if tc["name"] == "create_course" and isinstance(result, dict) and result.get("id"):
             course_id_update = {"course_id": result["id"]}
 
-    return {"messages": tool_results, "step_completed": True, "edited_args": None, **course_id_update}
+    # Mark the current guide step as completed directly in execute so the
+    # values event is emitted immediately, before guide→agent run.
+    guide_steps = copy.deepcopy(state.get("guide_steps") or [])
+    current_step_id = state.get("current_step_id", "")
+    for step in guide_steps:
+        if step["id"] == current_step_id:
+            step["status"] = "completed"
+            break
+
+    return {
+        "messages": tool_results,
+        "step_completed": True,
+        "edited_args": None,
+        "guide_steps": guide_steps,
+        **course_id_update,
+    }
 
 
 def after_tools(state: CourseBuilderState) -> str:
