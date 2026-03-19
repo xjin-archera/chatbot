@@ -3,28 +3,114 @@
 import { PaperPlaneTiltIcon, XIcon } from "@phosphor-icons/react"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
-import { useAgent } from "@/hooks/useAgent"
+import useSWR from "swr"
+import { type Course } from "@/app/courses/store"
+import { useAgent, type PageContext } from "@/hooks/useAgent"
 import { ConfirmationCard } from "@/components/chat/ConfirmationCard"
 import { GuideStepper } from "@/components/chat/GuideStepper"
 import { MessageBubble } from "@/components/chat/MessageBubble"
 
 export function ChatPanel({ onClose }: { onClose: () => void }) {
   const pathname = usePathname()
-  const { messages, isLoading, sendMessage, guideSteps, currentStepId, interrupt, resumeWithApproval, resumeWithRejection, resumeWithEdit, toolCalls } = useAgent()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  const {
+    messages,
+    isLoading,
+    sendMessage,
+    guideSteps,
+    currentStepId,
+    courseId,
+    interrupt,
+    resumeWithApproval,
+    resumeWithRejection,
+    resumeWithEdit,
+    toolCalls,
+    threadExists,
+  } = useAgent()
+
   const [draft, setDraft] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // Fetch current course if on edit page
+  const editingCourseId = searchParams.get("id")
+  const { data: currentCourse } = useSWR<Course>(
+    editingCourseId ? `/api/courses/${editingCourseId}` : null,
+    (url: string) => fetch(url).then((r) => r.json())
+  )
+
+  function buildPageContext(): PageContext {
+    const ctx: PageContext = {
+      path: pathname,
+      pageTitle: typeof document !== "undefined" ? document.title : "",
+    }
+    if (currentCourse) {
+      ctx.courseId = currentCourse.id
+      ctx.courseTitle = currentCourse.title
+      ctx.modulesCount = currentCourse.modules?.length ?? 0
+      ctx.lessonsCount =
+        currentCourse.modules?.reduce((sum, m) => sum + (m.lessons?.length ?? 0), 0) ?? 0
+      ctx.courseStatus = currentCourse.status
+    } else if (courseId) {
+      ctx.courseId = courseId
+    }
+    return ctx
+  }
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  // Auto-start on first open (no existing thread)
+  const hasInitialized = useRef(false)
+  useEffect(() => {
+    if (!hasInitialized.current && messages.length === 0 && !isLoading && !threadExists) {
+      hasInitialized.current = true
+      sendMessage("Hi, I'd like to create a new course", buildPageContext())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, isLoading, threadExists])
+
+  // Auto-navigate after course creation
+  const prevCourseIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (courseId && courseId !== prevCourseIdRef.current) {
+      prevCourseIdRef.current = courseId
+      setTimeout(() => {
+        router.push(`/courses/edit?id=${courseId}`)
+      }, 500)
+    }
+  }, [courseId, router])
+
+  // Auto-navigate based on active step
+  const prevStepRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (currentStepId && currentStepId !== prevStepRef.current) {
+      const prevStep = prevStepRef.current
+      prevStepRef.current = currentStepId
+      if (!prevStep) return
+      if (courseId) {
+        switch (currentStepId) {
+          case "add_module":
+          case "add_lesson":
+          case "publish":
+            if (pathname !== "/courses/edit" || searchParams.get("id") !== courseId) {
+              router.push(`/courses/edit?id=${courseId}`)
+            }
+            break
+        }
+      }
+    }
+  }, [currentStepId, courseId, router, pathname, searchParams])
+
   function handleSend() {
     const text = draft.trim()
     if (!text || isLoading) return
-    sendMessage(text, pathname)
+    sendMessage(text, buildPageContext())
     setDraft("")
   }
 
@@ -46,7 +132,9 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
       <GuideStepper
         guideSteps={guideSteps}
         currentStepId={currentStepId}
-        onStepClick={(_, stepTitle) => sendMessage(`I'd like to work on: ${stepTitle}`, pathname)}
+        onStepClick={(_, stepTitle) =>
+          sendMessage(`I'd like to work on: ${stepTitle}`, buildPageContext())
+        }
       />
       {guideSteps.length > 0 && <div className="shrink-0 border-t" />}
 
@@ -66,7 +154,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
                 key={msg.id ?? i}
                 msg={msg}
                 toolCalls={toolCalls}
-                onSuggestionSelect={(text) => sendMessage(text, pathname)}
+                onSuggestionSelect={(text) => sendMessage(text, buildPageContext())}
                 isLatest={!hasHumanAfter}
               />
             )

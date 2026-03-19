@@ -2,7 +2,18 @@
 
 import { type Interrupt, type Message, type ToolCallWithResult, type UseAgentStream } from "@langchain/langgraph-sdk"
 import { useStream } from "@langchain/langgraph-sdk/react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { mutate as swrMutate } from "swr"
+
+export type PageContext = {
+  path: string
+  pageTitle?: string
+  courseId?: string
+  courseTitle?: string
+  modulesCount?: number
+  lessonsCount?: number
+  courseStatus?: string
+}
 
 type GuideStep = {
   id: string
@@ -16,14 +27,13 @@ type AgentState = {
   guide_steps: GuideStep[]
   current_step_id: string | null
   course_id: string | null
-  page_context?: { path: string }
+  page_context?: PageContext
 }
 
 const THREAD_STORAGE_KEY = "course_builder_thread_id"
 
 function deriveToolCalls(messages: Message[]): ToolCallWithResult[] {
   const result: ToolCallWithResult[] = []
-  // Build a map of tool_call_id -> ToolMessage for quick lookup
   const toolMsgMap = new Map<string, Message>()
   for (const msg of messages) {
     if (msg.type === "tool" && "tool_call_id" in msg) {
@@ -36,6 +46,7 @@ function deriveToolCalls(messages: Message[]): ToolCallWithResult[] {
     if (!toolCalls?.length) continue
     for (let index = 0; index < toolCalls.length; index++) {
       const call = toolCalls[index]
+      if (!call) continue
       const resultMsg = toolMsgMap.get(call.id)
       result.push({
         id: call.id,
@@ -58,7 +69,8 @@ type UseAgentReturn = {
   isLoading: boolean
   interrupt: Interrupt | undefined
   toolCalls: ToolCallWithResult[]
-  sendMessage: (text: string, pathname: string) => void
+  threadExists: boolean
+  sendMessage: (text: string, pageContext: PageContext) => void
   resumeWithApproval: () => void
   resumeWithRejection: () => void
   resumeWithEdit: (args: Record<string, unknown>) => void
@@ -68,6 +80,11 @@ export function useAgent(): UseAgentReturn {
   const [threadId, setThreadId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null
     return localStorage.getItem(THREAD_STORAGE_KEY)
+  })
+
+  const [threadExists] = useState(() => {
+    if (typeof window === "undefined") return false
+    return !!localStorage.getItem(THREAD_STORAGE_KEY)
   })
 
   const stream = useStream<AgentState>({
@@ -81,6 +98,19 @@ export function useAgent(): UseAgentReturn {
     },
   })
 
+  // Revalidate all course SWR keys when the agent finishes loading
+  const prevLoadingRef = useRef(false)
+  useEffect(() => {
+    if (prevLoadingRef.current && !stream.isLoading) {
+      swrMutate(
+        (key: unknown) => typeof key === "string" && key.startsWith("/api/courses"),
+        undefined,
+        { revalidate: true }
+      )
+    }
+    prevLoadingRef.current = stream.isLoading
+  }, [stream.isLoading])
+
   const agentStream = stream as unknown as UseAgentStream<AgentState>
   const messages = stream.messages
   const toolCalls = useMemo(
@@ -90,10 +120,10 @@ export function useAgent(): UseAgentReturn {
   )
 
   const sendMessage = useCallback(
-    (text: string, pathname: string) => {
+    (text: string, pageContext: PageContext) => {
       stream.submit({
         messages: [{ type: "human", content: text }],
-        page_context: { path: pathname },
+        page_context: pageContext,
       })
     },
     [stream]
@@ -122,6 +152,7 @@ export function useAgent(): UseAgentReturn {
     isLoading: stream.isLoading,
     interrupt: stream.interrupt,
     toolCalls,
+    threadExists,
     sendMessage,
     resumeWithApproval,
     resumeWithRejection,

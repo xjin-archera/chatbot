@@ -96,12 +96,29 @@ async def agent(state: CourseBuilderState) -> dict:
         else ""
     )
 
+    page_context = state.get("page_context") or {}
+    course_id = state.get("course_id")
+
+    page_context_text = ""
+    if page_context:
+        page_context_text = "\n\nUser's current page:"
+        page_context_text += f"\n- Path: {page_context.get('path', 'unknown')}"
+        if page_context.get("pageTitle"):
+            page_context_text += f"\n- Page title: {page_context['pageTitle']}"
+        if page_context.get("courseTitle"):
+            page_context_text += f"\n- Viewing course: {page_context['courseTitle']}"
+            page_context_text += f"\n- Modules: {page_context.get('modulesCount', 0)}"
+            page_context_text += f"\n- Lessons: {page_context.get('lessonsCount', 0)}"
+            page_context_text += f"\n- Status: {page_context.get('courseStatus', 'unknown')}"
+
+    course_id_text = f"\n\nCurrent course ID: {course_id}" if course_id else ""
+
     system = SystemMessage(content=f"""You are a course builder assistant guiding the user through creating a course step by step.
 
 Current guide steps:
 {steps_text}
 
-The current active step is: {current_step_text}
+The current active step is: {current_step_text}{page_context_text}{course_id_text}
 
 Focus on helping the user complete the current step. Ask for any information you need.
 You can call get_courses or get_course anytime to check the current state.
