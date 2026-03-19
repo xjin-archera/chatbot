@@ -51,6 +51,7 @@ class CourseBuilderState(MessagesState):
     page_context: dict
     step_completed: bool
     edited_args: dict | None
+    reset_guide: bool
 
 
 class CourseBuilderInput(MessagesState):

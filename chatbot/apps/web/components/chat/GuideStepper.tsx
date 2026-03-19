@@ -23,6 +23,7 @@ export function GuideStepper({ guideSteps, currentStepId, onStepClick }: Props) 
   if (guideSteps.length === 0) return null
 
   const doneCount = guideSteps.filter((s) => s.status === "completed").length
+  const allDone = doneCount === guideSteps.length
   const activeStep = guideSteps.find(
     (s) => s.status === "active" || s.id === currentStepId
   )
@@ -35,11 +36,13 @@ export function GuideStepper({ guideSteps, currentStepId, onStepClick }: Props) 
         className="flex w-full items-center justify-between px-4 py-2 text-left hover:bg-muted/50"
       >
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-foreground">Guide</span>
-          <span className="text-xs text-muted-foreground">
+          <span className={`text-xs font-semibold ${allDone ? "text-green-600" : "text-foreground"}`}>
+            {allDone ? "🎉 All steps completed!" : "Guide"}
+          </span>
+          <span className={`text-xs ${allDone ? "text-green-500" : "text-muted-foreground"}`}>
             {doneCount}/{guideSteps.length}
           </span>
-          {!open && activeStep && (
+          {!open && !allDone && activeStep && (
             <span className="max-w-[140px] truncate text-xs text-muted-foreground">
               · {activeStep.title}
             </span>

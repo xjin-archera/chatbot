@@ -122,6 +122,13 @@ async def add_lesson(
 
 
 @tool
+def reset_guide() -> str:
+    """Reset the course builder guide to start creating a new course.
+    Call this when the user wants to create another course after completing all steps."""
+    return "Guide reset requested"
+
+
+@tool
 async def publish_course(course_id: str) -> dict | str:
     """Publish a course by setting its status to published."""
     try:

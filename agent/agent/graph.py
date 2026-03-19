@@ -14,14 +14,15 @@ from agent.tools import (
     get_course,
     get_courses,
     publish_course,
+    reset_guide,
     update_course,
 )
 
-MUTATION_TOOLS = ["create_course", "update_course", "add_module", "add_lesson", "publish_course"]
+MUTATION_TOOLS = ["create_course", "update_course", "add_module", "add_lesson", "publish_course", "reset_guide"]
 READ_TOOLS = ["get_courses", "get_course"]
 
 read_tools = [get_courses, get_course]
-mutation_tools = [create_course, update_course, add_module, add_lesson, publish_course]
+mutation_tools = [create_course, update_course, add_module, add_lesson, publish_course, reset_guide]
 all_tools = read_tools + mutation_tools
 
 tool_map = {t.name: t for t in all_tools}
@@ -35,13 +36,15 @@ llm_with_tools = llm.bind_tools(all_tools)
 def guide(state: CourseBuilderState) -> dict:
     guide_steps = state.get("guide_steps") or []
 
-    if not guide_steps:
-        # First run: initialize from defaults, activate first step
+    # First run OR explicit reset: initialize fresh steps
+    if not guide_steps or state.get("reset_guide"):
         steps = copy.deepcopy(DEFAULT_GUIDE_STEPS)
         steps[0]["status"] = "active"
         return {
             "guide_steps": steps,
             "current_step_id": steps[0]["id"],
+            "course_id": None,
+            "reset_guide": False,
         }
 
     # Only advance if execute node signaled completion
@@ -67,7 +70,11 @@ def guide(state: CourseBuilderState) -> dict:
         }
 
     # All steps completed
-    return {"guide_steps": steps, "step_completed": False}
+    return {
+        "guide_steps": steps,
+        "current_step_id": "",
+        "step_completed": False,
+    }
 
 
 async def agent(state: CourseBuilderState) -> dict:
@@ -81,6 +88,13 @@ async def agent(state: CourseBuilderState) -> dict:
     current_step = next((s for s in guide_steps if s["id"] == current_step_id), None)
     current_step_text = current_step["title"] if current_step else "unknown"
 
+    all_completed = all(s["status"] == "completed" for s in guide_steps) if guide_steps else False
+    new_course_hint = (
+        "\n\nAll steps have been completed! If the user wants to create another course, call the reset_guide tool."
+        if all_completed
+        else ""
+    )
+
     system = SystemMessage(content=f"""You are a course builder assistant guiding the user through creating a course step by step.
 
 Current guide steps:
@@ -92,7 +106,7 @@ Focus on helping the user complete the current step. Ask for any information you
 You can call get_courses or get_course anytime to check the current state.
 When you have enough information to take action, call the appropriate tool \
 (create_course, update_course, add_module, add_lesson, publish_course) with the proposed data. \
-Your mutation tool calls will be shown to the user for confirmation before being executed.""")
+Your mutation tool calls will be shown to the user for confirmation before being executed.{new_course_hint}""")
 
     messages = [system, *state["messages"]]
     response = await llm_with_tools.ainvoke(messages)
@@ -161,6 +175,14 @@ async def execute(state: CourseBuilderState) -> dict:
     for tc in last_ai.tool_calls:
         if tc["name"] not in MUTATION_TOOLS:
             continue
+
+        if tc["name"] == "reset_guide":
+            return {
+                "messages": [ToolMessage(content="Guide reset. Starting fresh!", tool_call_id=tc["id"])],
+                "step_completed": False,
+                "reset_guide": True,
+            }
+
         args = {**tc["args"], **edited_args} if edited_args else tc["args"]
         result = await tool_map[tc["name"]].ainvoke(args)
         tool_results.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
