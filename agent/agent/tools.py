@@ -122,6 +122,21 @@ async def add_lesson(
 
 
 @tool
+def suggest_options(options: list[str], prompt_text: str, field_name: str) -> str:
+    """Suggest a list of options for the user to choose from.
+
+    Args:
+        options: List of suggested options the user can pick from
+        prompt_text: The question or prompt to show above the options
+        field_name: What field this suggestion is for (e.g. "course_title", "category", "module_name", "lesson_type")
+
+    Returns:
+        This tool is used to display suggestions in the UI. It does not need to execute.
+    """
+    return "Options displayed to user"
+
+
+@tool
 def reset_guide() -> str:
     """Reset the course builder guide to start creating a new course.
     Call this when the user wants to create another course after completing all steps."""

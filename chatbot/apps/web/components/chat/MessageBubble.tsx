@@ -3,11 +3,16 @@
 import { type Message, type ToolCallWithResult } from "@langchain/langgraph-sdk"
 import { motion } from "motion/react"
 import { Markdown } from "@/components/chat/Markdown"
+import { SuggestionChips } from "@/components/chat/SuggestionChips"
 import { ToolCallCard } from "@/components/chat/ToolCallCard"
+
+type AiToolCall = { id: string; name: string; args: Record<string, unknown> }
 
 type MessageBubbleProps = {
   msg: Message
   toolCalls?: ToolCallWithResult[]
+  onSuggestionSelect?: (text: string) => void
+  isLatest?: boolean
 }
 
 function getTextContent(content: Message["content"]): string {
@@ -18,14 +23,21 @@ function getTextContent(content: Message["content"]): string {
     .join("")
 }
 
-export function MessageBubble({ msg, toolCalls }: MessageBubbleProps) {
+export function MessageBubble({ msg, toolCalls, onSuggestionSelect, isLatest }: MessageBubbleProps) {
   if (msg.type === "ai") {
     const text = getTextContent(msg.content)
-    const aiToolCallIds = (msg.tool_calls as Array<{ id: string }> | undefined) ?? []
+    const aiToolCalls = (msg.tool_calls as AiToolCall[] | undefined) ?? []
     const messageToolCalls =
-      toolCalls?.filter((tc) => aiToolCallIds.find((t) => t.id === tc.call.id)) ?? []
+      toolCalls?.filter((tc) => aiToolCalls.find((t) => t.id === tc.call.id)) ?? []
 
-    if (!text.trim() && messageToolCalls.length === 0) return null
+    const suggestCall = aiToolCalls.find((tc) => tc.name === "suggest_options")
+    const suggestions = suggestCall?.args as
+      | { options: string[]; prompt_text: string; field_name: string }
+      | undefined
+
+    const visibleToolCalls = messageToolCalls.filter((tc) => tc.call.name !== "suggest_options")
+
+    if (!text.trim() && visibleToolCalls.length === 0 && !suggestions) return null
 
     return (
       <motion.div
@@ -38,9 +50,17 @@ export function MessageBubble({ msg, toolCalls }: MessageBubbleProps) {
             <Markdown>{text}</Markdown>
           </div>
         )}
-        {messageToolCalls.map((tc) => (
+        {visibleToolCalls.map((tc) => (
           <ToolCallCard key={tc.call.id} toolCall={tc} />
         ))}
+        {suggestions && suggestions.options?.length > 0 && (
+          <SuggestionChips
+            options={suggestions.options}
+            promptText={suggestions.prompt_text}
+            onSelect={(option) => onSuggestionSelect?.(option)}
+            disabled={!isLatest}
+          />
+        )}
       </motion.div>
     )
   }

@@ -57,9 +57,21 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
             Ask anything about your courses.
           </p>
         )}
-        {messages.filter((msg) => msg.type !== "tool").map((msg, i) => (
-          <MessageBubble key={msg.id ?? i} msg={msg} toolCalls={toolCalls} />
-        ))}
+        {(() => {
+          const filtered = messages.filter((msg) => msg.type !== "tool")
+          return filtered.map((msg, i) => {
+            const hasHumanAfter = filtered.slice(i + 1).some((m) => m.type === "human")
+            return (
+              <MessageBubble
+                key={msg.id ?? i}
+                msg={msg}
+                toolCalls={toolCalls}
+                onSuggestionSelect={(text) => sendMessage(text, pathname)}
+                isLatest={!hasHumanAfter}
+              />
+            )
+          })
+        })()}
         {interrupt && (
           <ConfirmationCard
             interrupt={interrupt}

@@ -15,13 +15,14 @@ from agent.tools import (
     get_courses,
     publish_course,
     reset_guide,
+    suggest_options,
     update_course,
 )
 
 MUTATION_TOOLS = ["create_course", "update_course", "add_module", "add_lesson", "publish_course", "reset_guide"]
-READ_TOOLS = ["get_courses", "get_course"]
+READ_TOOLS = ["get_courses", "get_course", "suggest_options"]
 
-read_tools = [get_courses, get_course]
+read_tools = [get_courses, get_course, suggest_options]
 mutation_tools = [create_course, update_course, add_module, add_lesson, publish_course, reset_guide]
 all_tools = read_tools + mutation_tools
 
@@ -106,7 +107,15 @@ Focus on helping the user complete the current step. Ask for any information you
 You can call get_courses or get_course anytime to check the current state.
 When you have enough information to take action, call the appropriate tool \
 (create_course, update_course, add_module, add_lesson, publish_course) with the proposed data. \
-Your mutation tool calls will be shown to the user for confirmation before being executed.{new_course_hint}""")
+Your mutation tool calls will be shown to the user for confirmation before being executed.
+
+When asking the user for input on a step, ALWAYS call the suggest_options tool alongside your text response with 3-5 relevant suggestions. For example:
+- When asking for a course title: suggest 3-4 course name ideas based on the topic
+- When asking for a category: suggest relevant categories (e.g. Programming, Design, Business, Marketing)
+- When asking for a module name: suggest module name ideas based on the course topic
+- When asking for a lesson title: suggest lesson title ideas based on the module
+- When asking for lesson type: suggest from available types — video, article, quiz, assignment
+Call suggest_options in the same response as your text message. The user can click a suggestion or type their own answer.{new_course_hint}""")
 
     messages = [system, *state["messages"]]
     response = await llm_with_tools.ainvoke(messages)
@@ -192,6 +201,17 @@ async def execute(state: CourseBuilderState) -> dict:
     return {"messages": tool_results, "step_completed": True, "edited_args": None, **course_id_update}
 
 
+def after_tools(state: CourseBuilderState) -> str:
+    """After tool_executor runs, end the turn if suggest_options was the only tool called."""
+    for msg in reversed(state["messages"]):
+        if isinstance(msg, AIMessage):
+            tool_names = [tc["name"] for tc in (msg.tool_calls or [])]
+            if tool_names and all(t == "suggest_options" for t in tool_names):
+                return "end"
+            break
+    return "agent"
+
+
 # --- Graph ---
 
 tool_executor = ToolNode(read_tools)
@@ -211,7 +231,7 @@ builder.add_conditional_edges(
     should_continue,
     {"continue": "tool_executor", "confirm": "confirm", "end": END},
 )
-builder.add_edge("tool_executor", "agent")
+builder.add_conditional_edges("tool_executor", after_tools, {"agent": "agent", "end": END})
 # confirm uses Command for routing — no conditional edge needed here
 builder.add_edge("execute", "guide")
 
