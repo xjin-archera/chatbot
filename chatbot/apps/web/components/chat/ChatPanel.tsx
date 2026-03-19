@@ -6,10 +6,11 @@ import { Input } from "@workspace/ui/components/input"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { useAgent } from "@/hooks/useAgent"
+import { GuideStepper } from "@/components/chat/GuideStepper"
 
 export function ChatPanel({ onClose }: { onClose: () => void }) {
   const pathname = usePathname()
-  const { messages, isLoading, sendMessage } = useAgent()
+  const { messages, isLoading, sendMessage, guideSteps, currentStepId } = useAgent()
   const [draft, setDraft] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -38,6 +39,14 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
           <XIcon className="size-4" />
         </button>
       </div>
+
+      {/* Guide stepper */}
+      <GuideStepper
+        guideSteps={guideSteps}
+        currentStepId={currentStepId}
+        onStepClick={(_, stepTitle) => sendMessage(`I'd like to work on: ${stepTitle}`, pathname)}
+      />
+      {guideSteps.length > 0 && <div className="shrink-0 border-t" />}
 
       {/* Messages */}
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
