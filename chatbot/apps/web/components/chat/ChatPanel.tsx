@@ -6,12 +6,13 @@ import { Input } from "@workspace/ui/components/input"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { useAgent } from "@/hooks/useAgent"
+import { ConfirmationCard } from "@/components/chat/ConfirmationCard"
 import { GuideStepper } from "@/components/chat/GuideStepper"
 import { MessageBubble } from "@/components/chat/MessageBubble"
 
 export function ChatPanel({ onClose }: { onClose: () => void }) {
   const pathname = usePathname()
-  const { messages, isLoading, sendMessage, guideSteps, currentStepId } = useAgent()
+  const { messages, isLoading, sendMessage, guideSteps, currentStepId, interrupt, resumeWithApproval, resumeWithRejection, resumeWithEdit } = useAgent()
   const [draft, setDraft] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -56,9 +57,17 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
             Ask anything about your courses.
           </p>
         )}
-        {messages.map((msg, i) => (
+        {messages.filter((msg) => msg.type !== "tool").map((msg, i) => (
           <MessageBubble key={msg.id ?? i} msg={msg} />
         ))}
+        {interrupt && (
+          <ConfirmationCard
+            interrupt={interrupt}
+            onApprove={resumeWithApproval}
+            onReject={resumeWithRejection}
+            onEdit={resumeWithEdit}
+          />
+        )}
         {isLoading && (
           <div className="flex justify-start">
             <div className="rounded-lg bg-muted px-3 py-2">
@@ -79,6 +88,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
           className="flex-1 text-sm"
           placeholder="Type a message…"
           value={draft}
+          disabled={!!interrupt}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -87,7 +97,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
             }
           }}
         />
-        <Button size="sm" disabled={!draft.trim() || isLoading} onClick={handleSend}>
+        <Button size="sm" disabled={!draft.trim() || isLoading || !!interrupt} onClick={handleSend}>
           <PaperPlaneTiltIcon className="size-4" />
         </Button>
       </div>

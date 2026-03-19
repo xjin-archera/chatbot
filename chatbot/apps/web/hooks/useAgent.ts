@@ -31,6 +31,7 @@ type UseAgentReturn = {
   sendMessage: (text: string, pathname: string) => void
   resumeWithApproval: () => void
   resumeWithRejection: () => void
+  resumeWithEdit: (args: Record<string, unknown>) => void
 }
 
 export function useAgent(): UseAgentReturn {
@@ -70,6 +71,13 @@ export function useAgent(): UseAgentReturn {
     stream.submit(null, { command: { resume: { action: "reject" } } })
   }, [stream])
 
+  const resumeWithEdit = useCallback(
+    (args: Record<string, unknown>) => {
+      stream.submit(null, { command: { resume: { action: "edit", args } } })
+    },
+    [stream]
+  )
+
   return {
     messages: stream.messages,
     guideSteps: stream.values.guide_steps ?? [],
@@ -80,5 +88,6 @@ export function useAgent(): UseAgentReturn {
     sendMessage,
     resumeWithApproval,
     resumeWithRejection,
+    resumeWithEdit,
   }
 }
