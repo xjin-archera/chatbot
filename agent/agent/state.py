@@ -49,6 +49,7 @@ class CourseBuilderState(MessagesState):
     current_step_id: str
     course_id: str | None
     page_context: dict
+    step_completed: bool
 
 
 class CourseBuilderInput(MessagesState):

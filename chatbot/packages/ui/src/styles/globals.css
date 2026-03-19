@@ -126,3 +126,33 @@
     @apply bg-background text-foreground;
     }
 }
+
+@layer components {
+  .markdown-content {
+    @apply text-sm leading-relaxed;
+
+    p { @apply my-1 last:mb-0; }
+    ul { @apply my-1 list-disc pl-4; }
+    ol { @apply my-1 list-decimal pl-4; }
+    li { @apply my-0.5; }
+    h1, h2, h3, h4 { @apply font-semibold mt-2 mb-1 first:mt-0; }
+    h1 { @apply text-base; }
+    h2 { @apply text-sm; }
+    h3, h4 { @apply text-xs; }
+    a { @apply underline underline-offset-2 hover:opacity-80; }
+    blockquote { @apply border-l-2 border-border pl-3 text-muted-foreground italic my-1; }
+    hr { @apply my-2 border-border; }
+
+    code {
+      @apply rounded bg-black/10 px-1 py-0.5 font-mono text-xs dark:bg-white/10;
+    }
+    pre {
+      @apply my-2 overflow-x-auto rounded-md bg-black/10 p-3 dark:bg-white/10;
+      code { @apply bg-transparent p-0; }
+    }
+
+    table { @apply my-1 w-full text-xs border-collapse; }
+    th { @apply border border-border px-2 py-1 font-semibold text-left; }
+    td { @apply border border-border px-2 py-1; }
+  }
+}

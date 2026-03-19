@@ -50,6 +50,8 @@ export function useAgent(): UseAgentReturn {
     },
   })
 
+  console.log(stream.values.guide_steps)
+
   const sendMessage = useCallback(
     (text: string, pathname: string) => {
       stream.submit({

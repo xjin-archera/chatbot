@@ -44,7 +44,11 @@ def guide(state: CourseBuilderState) -> dict:
             "current_step_id": steps[0]["id"],
         }
 
-    # Subsequent run (called after execute): mark current step completed, activate next
+    # Only advance if execute node signaled completion
+    if not state.get("step_completed"):
+        return {}
+
+    # Mark current step completed, activate next
     steps = copy.deepcopy(guide_steps)
     current_step_id = state.get("current_step_id", "")
 
@@ -59,10 +63,11 @@ def guide(state: CourseBuilderState) -> dict:
         return {
             "guide_steps": steps,
             "current_step_id": next_step["id"],
+            "step_completed": False,
         }
 
     # All steps completed
-    return {"guide_steps": steps}
+    return {"guide_steps": steps, "step_completed": False}
 
 
 async def agent(state: CourseBuilderState) -> dict:
@@ -144,13 +149,16 @@ async def execute(state: CourseBuilderState) -> dict:
         return {}
 
     tool_results = []
+    course_id_update: dict = {}
     for tc in last_ai.tool_calls:
         if tc["name"] not in MUTATION_TOOLS:
             continue
         result = await tool_map[tc["name"]].ainvoke(tc["args"])
         tool_results.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+        if tc["name"] == "create_course" and isinstance(result, dict) and result.get("id"):
+            course_id_update = {"course_id": result["id"]}
 
-    return {"messages": tool_results}
+    return {"messages": tool_results, "step_completed": True, **course_id_update}
 
 
 # --- Graph ---
