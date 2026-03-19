@@ -67,6 +67,7 @@ type UseAgentReturn = {
   currentStepId: string | null
   courseId: string | null
   isLoading: boolean
+  error: unknown
   interrupt: Interrupt | undefined
   toolCalls: ToolCallWithResult[]
   threadExists: boolean
@@ -150,6 +151,7 @@ export function useAgent(): UseAgentReturn {
     currentStepId: stream.values.current_step_id ?? null,
     courseId: stream.values.course_id ?? null,
     isLoading: stream.isLoading,
+    error: stream.error,
     interrupt: stream.interrupt,
     toolCalls,
     threadExists,

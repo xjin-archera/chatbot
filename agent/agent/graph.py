@@ -53,14 +53,8 @@ def guide(state: CourseBuilderState) -> dict:
     if not state.get("step_completed"):
         return {}
 
-    # Mark current step completed, activate next
+    # Activate next pending step (execute already marked the current step completed)
     steps = copy.deepcopy(guide_steps)
-    current_step_id = state.get("current_step_id", "")
-
-    for step in steps:
-        if step["id"] == current_step_id:
-            step["status"] = "completed"
-            break
 
     next_step = next((s for s in steps if s["status"] == "pending"), None)
     if next_step:

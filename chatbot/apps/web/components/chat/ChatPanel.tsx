@@ -20,6 +20,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   const {
     messages,
     isLoading,
+    error,
     sendMessage,
     guideSteps,
     currentStepId,
@@ -34,6 +35,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 
   const [draft, setDraft] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
+  const wasAutoStarted = useRef(false)
 
   // Fetch current course if on edit page
   const editingCourseId = searchParams.get("id")
@@ -70,6 +72,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (!hasInitialized.current && messages.length === 0 && !isLoading && !threadExists) {
       hasInitialized.current = true
+      wasAutoStarted.current = true
       sendMessage("Hi, I'd like to create a new course", buildPageContext())
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,8 +148,18 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
             Ask anything about your courses.
           </p>
         )}
+        {!!error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            Something went wrong. Please try again.
+          </div>
+        )}
         {(() => {
-          const filtered = messages.filter((msg) => msg.type !== "tool")
+          const filtered = messages.filter((msg, i) => {
+            if (msg.type === "tool") return false
+            // Hide the silent auto-start human message
+            if (wasAutoStarted.current && i === 0 && msg.type === "human") return false
+            return true
+          })
           return filtered.map((msg, i) => {
             const hasHumanAfter = filtered.slice(i + 1).some((m) => m.type === "human")
             return (
