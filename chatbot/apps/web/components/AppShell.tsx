@@ -1,7 +1,11 @@
 "use client"
 
-import { AnimatePresence, motion } from "motion/react"
 import { useState } from "react"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@workspace/ui/components/resizable"
 import { ChatPanel } from "./chat/ChatPanel"
 import { Navbar } from "./Navbar"
 
@@ -13,26 +17,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Navbar chatOpen={chatOpen} onToggleChat={() => setChatOpen((v) => !v)} />
 
       {/* Content row below navbar */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Main area — shrinks when chat opens */}
-        <div className="flex-1 overflow-y-auto">{children}</div>
+      {chatOpen ? (
+        <ResizablePanelGroup orientation="horizontal" className="flex-1 overflow-hidden">
+          <ResizablePanel defaultSize="65%">
+            <div className="h-full overflow-y-auto">{children}</div>
+          </ResizablePanel>
 
-        {/* Chat panel — animates in/out from the right */}
-        <AnimatePresence initial={false}>
-          {chatOpen && (
-            <motion.div
-              key="chat"
-              className="flex w-[400px] shrink-0 flex-col border-l bg-background"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 400, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ type: "spring", damping: 30, stiffness: 250 }}
-            >
+          <ResizableHandle withHandle />
+
+          <ResizablePanel defaultSize="35%" minSize="20%" maxSize="50%" className="border-l bg-background">
+            <div className="flex h-full flex-col overflow-hidden">
               <ChatPanel onClose={() => setChatOpen(false)} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        <div className="flex-1 overflow-y-auto">{children}</div>
+      )}
     </div>
   )
 }
