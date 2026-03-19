@@ -2,7 +2,7 @@
 
 import { type Interrupt, type Message, type ToolCallWithResult, type UseAgentStream } from "@langchain/langgraph-sdk"
 import { useStream } from "@langchain/langgraph-sdk/react"
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 
 type GuideStep = {
   id: string
@@ -20,6 +20,35 @@ type AgentState = {
 }
 
 const THREAD_STORAGE_KEY = "course_builder_thread_id"
+
+function deriveToolCalls(messages: Message[]): ToolCallWithResult[] {
+  const result: ToolCallWithResult[] = []
+  // Build a map of tool_call_id -> ToolMessage for quick lookup
+  const toolMsgMap = new Map<string, Message>()
+  for (const msg of messages) {
+    if (msg.type === "tool" && "tool_call_id" in msg) {
+      toolMsgMap.set(msg.tool_call_id as string, msg)
+    }
+  }
+  for (const msg of messages) {
+    if (msg.type !== "ai") continue
+    const toolCalls = (msg as { tool_calls?: Array<{ id: string; name: string; args: Record<string, unknown> }> }).tool_calls
+    if (!toolCalls?.length) continue
+    for (let index = 0; index < toolCalls.length; index++) {
+      const call = toolCalls[index]
+      const resultMsg = toolMsgMap.get(call.id)
+      result.push({
+        id: call.id,
+        call,
+        result: resultMsg as ToolCallWithResult["result"],
+        aiMessage: msg as ToolCallWithResult["aiMessage"],
+        index,
+        state: resultMsg ? "completed" : "pending",
+      })
+    }
+  }
+  return result
+}
 
 type UseAgentReturn = {
   messages: Message[]
@@ -52,7 +81,13 @@ export function useAgent(): UseAgentReturn {
     },
   })
 
-  console.log(stream.values.guide_steps)
+  const agentStream = stream as unknown as UseAgentStream<AgentState>
+  const messages = stream.messages
+  const toolCalls = useMemo(
+    () => agentStream.toolCalls ?? deriveToolCalls(messages),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [agentStream.toolCalls, messages]
+  )
 
   const sendMessage = useCallback(
     (text: string, pathname: string) => {
@@ -86,7 +121,7 @@ export function useAgent(): UseAgentReturn {
     courseId: stream.values.course_id ?? null,
     isLoading: stream.isLoading,
     interrupt: stream.interrupt,
-    toolCalls: (stream as unknown as UseAgentStream<AgentState>).toolCalls ?? [],
+    toolCalls,
     sendMessage,
     resumeWithApproval,
     resumeWithRejection,

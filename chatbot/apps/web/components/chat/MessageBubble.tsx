@@ -39,7 +39,7 @@ export function MessageBubble({ msg, toolCalls }: MessageBubbleProps) {
           </div>
         )}
         {messageToolCalls.map((tc) => (
-          <ToolCallCard key={tc.id} toolCall={tc} />
+          <ToolCallCard key={tc.call.id} toolCall={tc} />
         ))}
       </motion.div>
     )

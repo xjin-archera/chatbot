@@ -113,7 +113,7 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
       </div>
     )
   } else if (name === "add_module") {
-    const title = String(args.title ?? args.name ?? "Module")
+    const title = String(args.module_title ?? args.title ?? args.name ?? "Module")
     card = (
       <div className="rounded-lg border border-green-300 bg-green-50 p-3 dark:bg-green-950/20">
         <p className="text-xs font-medium text-green-800 dark:text-green-300">✅ Module Added</p>
@@ -121,8 +121,8 @@ export function ToolCallCard({ toolCall }: ToolCallCardProps) {
       </div>
     )
   } else if (name === "add_lesson") {
-    const title = String(args.title ?? args.name ?? "Lesson")
-    const lessonType = String(args.type ?? args.lesson_type ?? "")
+    const title = String(args.lesson_title ?? args.title ?? args.name ?? "Lesson")
+    const lessonType = String(args.lesson_type ?? args.type ?? "")
     card = (
       <div className="rounded-lg border border-green-300 bg-green-50 p-3 dark:bg-green-950/20">
         <div className="flex items-center gap-2">
