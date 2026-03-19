@@ -1,8 +1,14 @@
 "use client"
 
-import { type Message } from "@langchain/langgraph-sdk"
+import { type Message, type ToolCallWithResult } from "@langchain/langgraph-sdk"
 import { motion } from "motion/react"
 import { Markdown } from "@/components/chat/Markdown"
+import { ToolCallCard } from "@/components/chat/ToolCallCard"
+
+type MessageBubbleProps = {
+  msg: Message
+  toolCalls?: ToolCallWithResult[]
+}
 
 function getTextContent(content: Message["content"]): string {
   if (typeof content === "string") return content
@@ -12,19 +18,29 @@ function getTextContent(content: Message["content"]): string {
     .join("")
 }
 
-export function MessageBubble({ msg }: { msg: Message }) {
+export function MessageBubble({ msg, toolCalls }: MessageBubbleProps) {
   if (msg.type === "ai") {
     const text = getTextContent(msg.content)
-    if (!text.trim()) return null
+    const aiToolCallIds = (msg.tool_calls as Array<{ id: string }> | undefined) ?? []
+    const messageToolCalls =
+      toolCalls?.filter((tc) => aiToolCallIds.find((t) => t.id === tc.call.id)) ?? []
+
+    if (!text.trim() && messageToolCalls.length === 0) return null
+
     return (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex justify-start"
+        className="flex flex-col items-start gap-2"
       >
-        <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm text-foreground">
-          <Markdown>{text}</Markdown>
-        </div>
+        {text.trim() && (
+          <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm text-foreground">
+            <Markdown>{text}</Markdown>
+          </div>
+        )}
+        {messageToolCalls.map((tc) => (
+          <ToolCallCard key={tc.id} toolCall={tc} />
+        ))}
       </motion.div>
     )
   }

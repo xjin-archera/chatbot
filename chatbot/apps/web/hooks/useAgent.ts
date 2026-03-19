@@ -1,6 +1,6 @@
 "use client"
 
-import { type Interrupt, type Message } from "@langchain/langgraph-sdk"
+import { type Interrupt, type Message, type ToolCallWithResult, type UseAgentStream } from "@langchain/langgraph-sdk"
 import { useStream } from "@langchain/langgraph-sdk/react"
 import { useCallback, useState } from "react"
 
@@ -28,6 +28,7 @@ type UseAgentReturn = {
   courseId: string | null
   isLoading: boolean
   interrupt: Interrupt | undefined
+  toolCalls: ToolCallWithResult[]
   sendMessage: (text: string, pathname: string) => void
   resumeWithApproval: () => void
   resumeWithRejection: () => void
@@ -85,6 +86,7 @@ export function useAgent(): UseAgentReturn {
     courseId: stream.values.course_id ?? null,
     isLoading: stream.isLoading,
     interrupt: stream.interrupt,
+    toolCalls: (stream as unknown as UseAgentStream<AgentState>).toolCalls ?? [],
     sendMessage,
     resumeWithApproval,
     resumeWithRejection,

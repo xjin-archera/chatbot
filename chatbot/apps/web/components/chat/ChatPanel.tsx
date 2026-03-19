@@ -12,7 +12,7 @@ import { MessageBubble } from "@/components/chat/MessageBubble"
 
 export function ChatPanel({ onClose }: { onClose: () => void }) {
   const pathname = usePathname()
-  const { messages, isLoading, sendMessage, guideSteps, currentStepId, interrupt, resumeWithApproval, resumeWithRejection, resumeWithEdit } = useAgent()
+  const { messages, isLoading, sendMessage, guideSteps, currentStepId, interrupt, resumeWithApproval, resumeWithRejection, resumeWithEdit, toolCalls } = useAgent()
   const [draft, setDraft] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -58,7 +58,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
           </p>
         )}
         {messages.filter((msg) => msg.type !== "tool").map((msg, i) => (
-          <MessageBubble key={msg.id ?? i} msg={msg} />
+          <MessageBubble key={msg.id ?? i} msg={msg} toolCalls={toolCalls} />
         ))}
         {interrupt && (
           <ConfirmationCard
